@@ -1,12 +1,28 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
+import { useMutation, useQuery } from "convex/react";
 import Image from "next/image";
+import { api } from "../../convex/_generated/api";
 
 export default function Home() {
+  const projects = useQuery(api.projects.get)
+  const createProject = useMutation(api.projects.create)
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <Button>
-        Hello world!
+    <div className="flex flex-col gap-2 p-4">
+      <Button onClick={()=>createProject({
+        name: "New project"
+      })}>
+        Add New
       </Button>
+      
+      {projects?.map((project)=>(
+        <div key={project._id}>
+          <p>{project.name}</p>
+          <p>Owner Id: {`${project.ownerId}`}</p>
+        </div>
+      ))}
     </div>
   );
 }
