@@ -1,3 +1,7 @@
 import {Inngest} from "inngest";
+import {sentryMiddleware} from "@inngest/middleware-sentry";
 
-export const inngest = new Inngest({id: "google"})
+export const inngest = new Inngest({
+    id: "google", 
+    middleware: [sentryMiddleware()]
+})
