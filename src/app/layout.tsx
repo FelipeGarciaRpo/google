@@ -32,7 +32,7 @@ export default function RootLayout({
           className={`${inter.variable} ${plexMono.variable} antialiased`}
         >
           <Providers>
-            {/* <Toaster/> */}
+            <Toaster/>
             {children}
           </Providers>
         </body>
