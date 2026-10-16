@@ -163,11 +163,18 @@
 
   button:not([disabled]),
   [role="button"]:not([disabled]) { cursor: pointer; }
-}
 
-*:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--ring) 70%, transparent);
-  outline-offset: 1px;
+  /* Inside the base layer so utilities like outline-hidden can turn it off */
+  *:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--ring) 70%, transparent);
+    outline-offset: 1px;
+  }
+
+  /* Text fields show focus through their container, not a ring on the field */
+  input:focus-visible,
+  textarea:focus-visible {
+    outline: none;
+  }
 }
 
 /* =====================================================================
@@ -261,4 +268,3 @@
   border-top: 1px solid color-mix(in srgb, var(--primary) 20%, transparent) !important;
   border-bottom: 1px solid color-mix(in srgb, var(--primary) 20%, transparent) !important;
 }
-
