@@ -33,7 +33,7 @@ export const ProjectIdLayout = ({
                             maxSize={MAX_CHAT_WIDTH}
                             preferredSize={DEFAULT_CHAT_WIDTH}
                         >
-                            <ConversationSidebar projectId={projectId} />
+                            <ConversationSidebar key={projectId} projectId={projectId} />
                         </Allotment.Pane>
                         <Allotment.Pane>
                             {children}

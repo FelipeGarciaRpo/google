@@ -9,7 +9,8 @@ const ProjectIdPage = async ({
     const {projectId} = await params;
 
     return (
-        <ProjectIdView projectId={projectId as Id<"projects">}/>
+        // key: switching projects remounts the view, so the WebContainer and editor state start fresh
+        <ProjectIdView key={projectId} projectId={projectId as Id<"projects">}/>
     )
 }
 

@@ -1,17 +1,15 @@
 "use client";
 
-import { useState } from "react";
-import { Allotment } from "allotment";
 import {
   Loader2Icon,
-  TerminalSquareIcon,
   AlertTriangleIcon,
   RefreshCwIcon,
+  PackageIcon,
+  GlobeIcon,
 } from "lucide-react";
 
-import { useWebContainer } from "@/features/preview/hooks/use-webcontainer";
+import type { WebContainerState } from "@/features/preview/hooks/use-webcontainer";
 import { PreviewSettingsPopover } from "@/features/preview/components/preview-settings-popover";
-import { PreviewTerminal } from "@/features/preview/components/preview-terminal";
 
 import { Button } from "@/components/ui/button";
 
@@ -19,54 +17,46 @@ import { useProject } from "../hooks/use-project";
 
 import { Id } from "../../../../convex/_generated/dataModel";
 
-export const PreviewView = ({ projectId }: { projectId: Id<"projects"> }) => {
-  const project = useProject(projectId);
-  const [showTerminal, setShowTerminal] = useState(true);
+interface PreviewViewProps {
+  projectId: Id<"projects">;
+  webcontainer: WebContainerState;
+}
 
-  const {
-    status, previewUrl, error, restart, terminalOutput
-  } = useWebContainer({
-    projectId,
-    enabled: true,
-    settings: project?.settings,
-  });
+export const PreviewView = ({ projectId, webcontainer }: PreviewViewProps) => {
+  const project = useProject(projectId);
+  const { status, previewUrl, error, restart } = webcontainer;
 
   const isLoading = status === "booting" || status === "installing";
 
   return (
     <div className="h-full flex flex-col bg-background">
-      <div className="h-8.75 flex items-center border-b bg-sidebar shrink-0">
+      <div className="h-11 shrink-0 flex items-center gap-2 px-2 border-b">
         <Button
-          size="sm"
+          size="icon-sm"
           variant="ghost"
-          className="h-full rounded-none"
+          className="rounded-full"
           disabled={isLoading}
           onClick={restart}
           title="Restart container"
         >
-          <RefreshCwIcon className="size-3" />
+          <RefreshCwIcon className="size-3.5" />
         </Button>
 
-        <div className="flex-1 h-full flex items-center px-3 bg-background border-x text-xs text-muted-foreground truncate font-mono">
+        <div className="flex-1 min-w-0 h-7 flex items-center gap-2 px-3 rounded-full bg-surface border text-xs text-muted-foreground font-mono">
+          <GlobeIcon className="size-3.5 shrink-0" />
           {isLoading && (
-            <div className="flex items-center gap-1.5">
+            <span className="flex items-center gap-1.5">
               <Loader2Icon className="size-3 animate-spin" />
               {status === "booting" ? "Starting..." : "Installing..."}
-            </div>
+            </span>
           )}
           {previewUrl && <span className="truncate">{previewUrl}</span>}
-          {!isLoading && !previewUrl && !error && <span>Ready to preview</span>}
+          {!isLoading && !previewUrl && !error && (
+            <span>{status === "waiting" ? "Waiting for package.json" : "Ready to preview"}</span>
+          )}
+          {error && !previewUrl && <span className="truncate text-destructive">{error}</span>}
         </div>
 
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-full rounded-none"
-          title="Toggle terminal"
-          onClick={() => setShowTerminal((value) => !value)}
-        >
-          <TerminalSquareIcon className="size-3" />
-        </Button>
         <PreviewSettingsPopover
           projectId={projectId}
           initialValues={project?.settings}
@@ -75,51 +65,50 @@ export const PreviewView = ({ projectId }: { projectId: Id<"projects"> }) => {
       </div>
 
       <div className="flex-1 min-h-0">
-        <Allotment vertical>
-          <Allotment.Pane>
-            {error && (
-              <div className="size-full flex items-center justify-center text-muted-foreground">
-                <div className="flex flex-col items-center gap-2 max-w-md mx-auto text-center">
-                  <AlertTriangleIcon className="size-6" />
-                  <p className="text-sm font-medium">{error}</p>
-                  <Button size="sm" variant="outline" onClick={restart}>
-                    <RefreshCwIcon className="size-4" />
-                    Restart
-                  </Button>
-                </div>
-              </div>
-            )}
+        {error && (
+          <div className="size-full flex items-center justify-center text-muted-foreground">
+            <div className="flex flex-col items-center gap-2 max-w-md mx-auto text-center">
+              <AlertTriangleIcon className="size-6" />
+              <p className="text-sm font-medium">{error}</p>
+              <p className="text-xs">Check the Logs tab in the bottom panel for details.</p>
+              <Button size="sm" variant="outline" className="rounded-full" onClick={restart}>
+                <RefreshCwIcon className="size-4" />
+                Restart
+              </Button>
+            </div>
+          </div>
+        )}
 
-            {isLoading && !error && (
-              <div className="size-full flex items-center justify-center text-muted-foreground">
-                <div className="flex flex-col items-center gap-2 max-w-md mx-auto text-center">
-                  <Loader2Icon className="size-6 animate-spin" />
-                  <p className="text-sm font-medium">Installing...</p>
-                </div>
-              </div>
-            )}
+        {isLoading && !error && (
+          <div className="size-full flex items-center justify-center text-muted-foreground">
+            <div className="flex flex-col items-center gap-2 max-w-md mx-auto text-center">
+              <Loader2Icon className="size-6 animate-spin" />
+              <p className="text-sm font-medium">
+                {status === "booting" ? "Starting environment..." : "Installing dependencies..."}
+              </p>
+            </div>
+          </div>
+        )}
 
-            {previewUrl && (
-              <iframe
-                src={previewUrl}
-                className="size-full border-0"
-                title="Preview"
-              />
-            )}
-          </Allotment.Pane>
+        {status === "waiting" && !error && (
+          <div className="size-full flex items-center justify-center text-muted-foreground">
+            <div className="flex flex-col items-center gap-2 max-w-sm mx-auto text-center">
+              <PackageIcon className="size-6" />
+              <p className="text-sm font-medium">No package.json yet</p>
+              <p className="text-xs">
+                Ask the agent to build an app. The preview starts by itself once the project has a package.json.
+              </p>
+            </div>
+          </div>
+        )}
 
-          {showTerminal && (
-            <Allotment.Pane minSize={100} maxSize={500} preferredSize={200}>
-              <div className="h-full flex flex-col bg-background border-t">
-                <div className="h-7 flex items-center px-3 text-xs gap-1.5 text-muted-foreground border-b border-border/50 shrink-0">
-                  <TerminalSquareIcon className="size-3" />
-                  Terminal
-                </div>
-                <PreviewTerminal output={terminalOutput} />
-              </div>
-            </Allotment.Pane>
-          )}
-        </Allotment>
+        {previewUrl && (
+          <iframe
+            src={previewUrl}
+            className="size-full border-0 bg-white"
+            title="Preview"
+          />
+        )}
       </div>
     </div>
   );
