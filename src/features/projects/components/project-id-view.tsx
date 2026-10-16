@@ -4,35 +4,49 @@ import { cn } from "@/lib/utils";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { useState } from "react";
 import { Allotment } from "allotment";
+import { Code2Icon, EyeIcon } from "lucide-react";
 import { FileExplorer } from "./file-explorer";
 import { EditorView } from "@/features/editor/components/editor-view";
-import { ThemeSwitcher } from "./file-explorer/theme-switcher";
 import { PreviewView } from "./preview-view";
-import { ExportPopover } from "./export-popover";
 
-const MIN_SIDEBAR_WIDTH = 200;
-const MAX_SIDEBAR_WIDTH = 800;
-const DEFAULT_SIDEBAR_WIDTH = 350;
+const MIN_SIDEBAR_WIDTH = 180;
+const MAX_SIDEBAR_WIDTH = 500;
+const DEFAULT_SIDEBAR_WIDTH = 240;
 const DEFAULT_MAIN_SIZE = 1000;
 
-const Tab = ({
-  label,
-  isActive,
-  onClick,
+type View = "editor" | "preview";
+
+// Segmented control, like the "Models | Agents" switch in AI Studio
+const ViewToggle = ({
+  value,
+  onChange,
 }: {
-  label: string;
-  isActive: boolean;
-  onClick: () => void;
+  value: View;
+  onChange: (value: View) => void;
 }) => {
+  const options: { value: View; label: string; icon: React.ReactNode }[] = [
+    { value: "editor", label: "Code", icon: <Code2Icon className="size-3.5" /> },
+    { value: "preview", label: "Preview", icon: <EyeIcon className="size-3.5" /> },
+  ];
+
   return (
-    <div
-      onClick={onClick}
-      className={cn(
-        "flex items-center gap-2 h-full px-3 cursor-pointer text-muted-foreground border-r hover:bg-accent/30",
-        isActive && "bg-background text-foreground"
-      )}
-    >
-      <span className="text-sm">{label}</span>
+    <div className="inline-flex items-center rounded-full bg-surface border p-0.5">
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          onClick={() => onChange(option.value)}
+          className={cn(
+            "flex items-center gap-1.5 h-7 px-3.5 rounded-full text-[13px] transition-colors",
+            value === option.value
+              ? "bg-accent text-foreground font-medium"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          {option.icon}
+          {option.label}
+        </button>
+      ))}
     </div>
   );
 };
@@ -42,32 +56,13 @@ export const ProjectIdView = ({
 }: {
   projectId: Id<"projects">;
 }) => {
-  const [activeView, setActiveView] = useState<"editor" | "preview">("editor");
+  const [activeView, setActiveView] = useState<View>("editor");
 
   return (
     <div className="h-full flex flex-col">
-      <nav className="h-8.75 flex items-center bg-sidebar">
-        {/* Tabs izquierda */}
-        <Tab
-          label="Code"
-          isActive={activeView === "editor"}
-          onClick={() => setActiveView("editor")}
-        />
-        <Tab
-          label="Preview"
-          isActive={activeView === "preview"}
-          onClick={() => setActiveView("preview")}
-        />
-
-        {/* Acciones derecha */}
-        <div className="flex-1 flex justify-end h-full">
-          {/* 🎨 Theme Switcher — va primero (más a la izquierda) */}
-          <ThemeSwitcher />
-
-          {/* Export */}
-          <ExportPopover projectId={projectId} />
-        </div>
-      </nav>
+      <div className="h-12 shrink-0 flex items-center px-3 border-b">
+        <ViewToggle value={activeView} onChange={setActiveView} />
+      </div>
 
       <div className="flex-1 relative">
         <div

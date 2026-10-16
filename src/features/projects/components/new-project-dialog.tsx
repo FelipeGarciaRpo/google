@@ -1,9 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import ky from "ky";
-import { toast } from "sonner";
-import { useRouter } from "next/navigation";
 
 import {
   Dialog,
@@ -12,18 +9,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { StudioPromptBox } from "@/components/studio-prompt-box";
 
-import {
-  PromptInput,
-  PromptInputBody,
-  PromptInputFooter,
-  PromptInputSubmit,
-  PromptInputTextarea,
-  PromptInputTools,
-  type PromptInputMessage,
-} from "@/components/ai-elements/prompt-input";
-
-import { Id } from "../../../../convex/_generated/dataModel";
+import { useCreateProjectWithPrompt } from "../hooks/use-create-project-with-prompt";
 
 interface NewProjectDialogProps {
   open: boolean;
@@ -34,30 +22,14 @@ export const NewProjectDialog = ({
   open,
   onOpenChange,
 }: NewProjectDialogProps) => {
-  const router = useRouter();
   const [input, setInput] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { createProject, isSubmitting } = useCreateProjectWithPrompt();
 
-  const handleSubmit = async (message: PromptInputMessage) => {
-    if (!message.text) return;
-
-    setIsSubmitting(true);
-
-    try {
-      const { projectId } = await ky
-        .post("/api/projects/create-with-prompt", {
-          json: { prompt: message.text.trim() },
-        })
-        .json<{ projectId: Id<"projects"> }>();
-
-      toast.success("Project created");
+  const handleSubmit = async (text: string) => {
+    const created = await createProject(text);
+    if (created) {
       onOpenChange(false);
       setInput("");
-      router.push(`/projects/${projectId}`);
-    } catch {
-      toast.error("Unable to create project");
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -65,28 +37,25 @@ export const NewProjectDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="sm:max-w-lg p-0"
+        className="sm:max-w-xl p-0 border-none bg-transparent shadow-none"
       >
-        <DialogHeader className="hidden">
+        <DialogHeader className="sr-only">
           <DialogTitle>What do you want to build?</DialogTitle>
           <DialogDescription>
             Describe your project and AI will help you create it.
           </DialogDescription>
         </DialogHeader>
-        <PromptInput onSubmit={handleSubmit} className="border-none!">
-          <PromptInputBody>
-            <PromptInputTextarea
-              placeholder="Ask Telemetry Studio to build..."
-              onChange={(e) => setInput(e.target.value)}
-              value={input}
-              disabled={isSubmitting}
-            />
-          </PromptInputBody>
-          <PromptInputFooter>
-             <PromptInputTools />
-             <PromptInputSubmit disabled={!input || isSubmitting} />
-          </PromptInputFooter>
-        </PromptInput>
+        <StudioPromptBox
+          size="lg"
+          autoFocus
+          value={input}
+          onValueChange={setInput}
+          onSubmit={handleSubmit}
+          disabled={isSubmitting}
+          submitLabel={isSubmitting ? "Creating…" : "Build"}
+          placeholder="Describe the app you want to build…"
+          className="bg-popover"
+        />
       </DialogContent>
     </Dialog>
   );

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef } from "react"
+import { useTheme } from "next-themes";
 import {basicSetup } from "codemirror"
 import { EditorView, keymap } from "@codemirror/view";
+import { Compartment } from "@codemirror/state";
 import {oneDark} from "@codemirror/theme-one-dark";
 import { customTheme } from "../extensions/theme";
 import { getLanguageExtension } from "../extensions/language-extension";
@@ -22,6 +24,12 @@ interface Props {
 export const CodeEditor = ({fileName, initialValue="", onChange}: Props)=>{
     const editorRef = useRef<HTMLDivElement>(null);
     const viewRef = useRef<EditorView | null>(null);
+    // Lets the theme switch without recreating the editor (keeps undo history)
+    const themeCompartmentRef = useRef(new Compartment());
+
+    const { resolvedTheme } = useTheme();
+    // Light mode drops oneDark and falls back to defaultHighlightStyle from customSetup
+    const isDark = resolvedTheme !== "light";
 
     const languageExtension = useMemo(()=> getLanguageExtension(fileName), [fileName])
 
@@ -33,7 +41,7 @@ export const CodeEditor = ({fileName, initialValue="", onChange}: Props)=>{
             doc: initialValue,
             parent: editorRef.current,
             extensions: [
-                oneDark,
+                themeCompartmentRef.current.of(isDark ? oneDark : []),
                 customTheme,
                 customSetup,
                 languageExtension,
@@ -62,6 +70,12 @@ export const CodeEditor = ({fileName, initialValue="", onChange}: Props)=>{
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps -- initialValue is only used for initial document
     },[languageExtension])
+
+    useEffect(()=>{
+        viewRef.current?.dispatch({
+            effects: themeCompartmentRef.current.reconfigure(isDark ? oneDark : []),
+        });
+    },[isDark])
 
     return (
         <div ref={editorRef} className="size-full bg-background" />
