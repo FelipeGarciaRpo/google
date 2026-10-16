@@ -14,6 +14,7 @@ import { useCreateProject, useProjectsPartial } from "../hooks/use-project";
 import { adjectives, animals, colors, uniqueNamesGenerator } from "unique-names-generator";
 import { useEffect, useState } from "react";
 import { ProjectsCommandDialog } from "./projects-command-dialog";
+import { ImportGithubDialog } from "./import-github-dialog";
 import Image from "next/image";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
@@ -175,6 +176,7 @@ const LastUpdatedCard = ({ onViewAll }: { onViewAll: () => void }) => {
 
 export const ProjectsView = () => {
     const [commandDialogOpen, setCommandDialogOpen] = useState(false);
+    const [importDialogOpen, setImportDialogOpen] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<"chats" | "build">("build");
     const createProject = useCreateProject();
@@ -184,6 +186,7 @@ export const ProjectsView = () => {
             if (e.key === "Escape") setSidebarOpen(false);
             if ((e.metaKey || e.ctrlKey) && e.key === "k") { e.preventDefault(); setCommandDialogOpen(true); }
             if ((e.metaKey || e.ctrlKey) && e.key === "b") { e.preventDefault(); setSidebarOpen(v => !v); }
+            if ((e.metaKey || e.ctrlKey) && e.key === "i") { e.preventDefault(); setImportDialogOpen(true); }
         };
         document.addEventListener("keydown", handleKeyDown);
         return () => document.removeEventListener("keydown", handleKeyDown);
@@ -192,6 +195,7 @@ export const ProjectsView = () => {
     return (
         <>
             <ProjectsCommandDialog open={commandDialogOpen} onOpenChange={setCommandDialogOpen} />
+            <ImportGithubDialog open={importDialogOpen} onOpenChange={setImportDialogOpen} />
 
             <div className="min-h-screen flex flex-col relative"
                 style={{ background: "#0d0f14", fontFamily: "'JetBrains Mono', monospace" }}>
@@ -352,7 +356,7 @@ export const ProjectsView = () => {
                                     {
                                         icon: <FaGithub className="size-4" style={{ color: "#64748b" }} />,
                                         label: "Import", sub: "From GitHub repo", kbd: "ctrl+I",
-                                        onClick: () => { },
+                                        onClick: () => setImportDialogOpen(true),
                                     },
                                 ].map((btn) => (
                                     <button key={btn.label} onClick={btn.onClick}
