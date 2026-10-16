@@ -79,6 +79,8 @@ export const useWebContainer = ({
   const hasStartedRef = useRef(false);
   // path -> content already written to the container
   const syncedRef = useRef<Map<string, string>>(new Map());
+  // Chain of file syncs, so they never overlap and callers can wait for the latest one
+  const syncPromiseRef = useRef<Promise<void>>(Promise.resolve());
 
   // Fetch files from Convex (auto-updates on changes)
   const files = useFiles(projectId);
@@ -232,8 +234,11 @@ export const useWebContainer = ({
       syncedRef.current = next;
     };
 
-    sync();
+    syncPromiseRef.current = syncPromiseRef.current.then(sync, sync);
   }, [files, status]);
+
+  // Resolves once the files currently in Convex are written to the container
+  const waitForSync = useCallback(() => syncPromiseRef.current, []);
 
   // Reset when disabled
   useEffect(() => {
@@ -251,6 +256,7 @@ export const useWebContainer = ({
     containerRef.current = null;
     hasStartedRef.current = false;
     syncedRef.current = new Map();
+    syncPromiseRef.current = Promise.resolve();
     setContainer(null);
     setStatus("idle");
     setPreviewUrl(null);
@@ -266,6 +272,7 @@ export const useWebContainer = ({
     terminalOutput,
     appendOutput,
     container,
+    waitForSync,
   };
 };
 
