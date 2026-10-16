@@ -107,7 +107,10 @@ export const SchemaDisplayPath = ({
     <span
       className={cn("font-mono text-sm", className)}
       // oxlint-disable-next-line eslint-plugin-react(no-danger)
-      dangerouslySetInnerHTML={{ __html: children ?? highlightedPath }}
+      // Only a string can be injected as HTML, any other children fall back to the highlighted path
+      dangerouslySetInnerHTML={{
+        __html: typeof children === "string" ? children : highlightedPath,
+      }}
       {...props}
     />
   );
