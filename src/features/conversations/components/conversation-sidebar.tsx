@@ -28,6 +28,8 @@ import {
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { StudioPromptBox } from "@/components/studio-prompt-box";
 import { cn } from "@/lib/utils";
+import { ModelSelector } from "@/features/ai/components/model-selector";
+import { useSelectedModel } from "@/features/ai/hooks/use-selected-model";
 
 import {
   useConversation,
@@ -136,6 +138,7 @@ export const ConversationSidebar = ({
     setPastConversationsOpen
   ] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [modelId, setModelId] = useSelectedModel();
 
   const createConversation = useCreateConversation();
   const conversations = useConversations(projectId);
@@ -191,6 +194,7 @@ export const ConversationSidebar = ({
         json: {
           conversationId,
           message: text,
+          model: modelId,
         },
       });
     } catch {
@@ -262,6 +266,14 @@ export const ConversationSidebar = ({
                 </MessageContent>
                 {message.role === "assistant" &&
                   message.status === "completed" &&
+                  message.model && (
+                    <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                      <SparklesIcon className="size-3" />
+                      {message.model}
+                    </span>
+                  )}
+                {message.role === "assistant" &&
+                  message.status === "completed" &&
                   messageIndex === (conversationMessages?.length ?? 0) - 1 && (
                     <MessageActions>
                       <MessageAction
@@ -290,6 +302,7 @@ export const ConversationSidebar = ({
             isProcessing={isProcessing}
             disabled={isProcessing}
             placeholder={isEmpty ? "Describe the app you want to build" : "Ask for changes or new features"}
+            toolbar={<ModelSelector value={modelId} onChange={setModelId} />}
           />
           <p className="mt-2 text-center text-[11px] text-muted-foreground">
             AI can make mistakes, so review the code before you ship it.

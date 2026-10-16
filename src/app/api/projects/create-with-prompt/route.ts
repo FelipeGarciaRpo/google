@@ -12,11 +12,13 @@ import { DEFAULT_CONVERSATION_TITLE } from "@/features/conversations/constants";
 
 import { inngest } from "@/inngest/client";
 import { convex } from "@/lib/convex-client";
+import { isModelId } from "@/features/ai/models";
 
 import { api } from "../../../../../convex/_generated/api";
 
 const requestSchema = z.object({
   prompt: z.string().min(1),
+  model: z.string().optional(),
 });
 
 export async function POST(request: Request) {
@@ -36,7 +38,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { prompt } = requestSchema.parse(body);
+  const { prompt, model } = requestSchema.parse(body);
 
   // Generate a random project name
   const projectName = uniqueNamesGenerator({
@@ -86,6 +88,7 @@ export async function POST(request: Request) {
       conversationId,
       projectId,
       message: prompt,
+      model: isModelId(model) ? model : undefined,
     },
   });
 
