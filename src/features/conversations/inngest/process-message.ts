@@ -120,6 +120,8 @@ export const processMessage = inngest.createFunction(
         model: gemini({
           //model: "claude-3-5-haiku-20241022",
           model: "gemini-flash-latest",
+          // AgentKit looks for GEMINI_API_KEY by default; reuse the AI SDK key instead
+          apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
           //defaultParameters: { temperature: 0, max_tokens: 50 },
         }),
        });
@@ -157,7 +159,10 @@ export const processMessage = inngest.createFunction(
       description: "An expert AI coding assistant",
       system: systemPrompt,
        model: gemini({
-        model: "gemini-flash-latest",
+        // Gemini 3 models require thought signatures on tool calls, which
+        // AgentKit 0.13 does not send back yet; 2.5 does not enforce them
+        model: "gemini-2.5-flash",
+        apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
         //defaultParameters: { temperature: 0.3, max_tokens: 16000 }
        }),
        tools: [
