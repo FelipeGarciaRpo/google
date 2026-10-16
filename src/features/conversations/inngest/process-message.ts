@@ -18,6 +18,9 @@ import { createCreateFolderTool } from './tools/create-folder';
 import { createRenameFileTool } from './tools/rename-file';
 import { createDeleteFilesTool } from './tools/delete-files';
 import { createScrapeUrlsTool } from './tools/scrape-urls';
+import { createGlobFilesTool } from './tools/glob-files';
+import { createGrepFilesTool } from './tools/grep-files';
+import { createEditFileTool } from './tools/edit-file';
 
 interface MessageEvent {
   messageId: Id<"messages">;
@@ -167,7 +170,10 @@ export const processMessage = inngest.createFunction(
        }),
        tools: [
         createListFilesTool({ internalKey, projectId }),
+        createGlobFilesTool({ internalKey, projectId }),
+        createGrepFilesTool({ internalKey, projectId }),
         createReadFilesTool({ internalKey }),
+        createEditFileTool({ internalKey }),
         createUpdateFileTool({ internalKey }),
         createCreateFilesTool({ projectId, internalKey }),
         createCreateFolderTool({ projectId, internalKey }),
