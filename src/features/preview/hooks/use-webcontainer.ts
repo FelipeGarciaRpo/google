@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { WebContainer } from "@webcontainer/api";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { WebContainer, type WebContainerProcess } from "@webcontainer/api";
 
 import {
   buildFileTree,
   getFilePath
 } from "@/features/preview/utils/file-tree";
+import { detectRuntime, type ProjectRuntime } from "@/features/preview/utils/detect-runtime";
 import { useFiles } from "@/features/projects/hooks/use-files";
 
-import { Doc, Id } from "../../../../convex/_generated/dataModel";
+import { Id } from "../../../../convex/_generated/dataModel";
 
 // Singleton WebContainer instance (the API allows one per page)
 let webcontainerInstance: WebContainer | null = null;
@@ -42,15 +43,25 @@ const getWebContainer = async (projectId: string): Promise<WebContainer> => {
   return webcontainerInstance;
 };
 
-const isRootPackageJson = (file: Doc<"files">) =>
-  file.type === "file" && file.name === "package.json" && !file.parentId;
+// Keep tools from stopping on interactive prompts
+const SPAWN_ENV = {
+  npm_config_yes: true,
+  NG_CLI_ANALYTICS: "false",
+  NEXT_TELEMETRY_DISABLED: "1",
+};
+
+// Python runs with Pyodide in the preview, not in the WebContainer
+const runsInContainer = (runtime: ProjectRuntime) =>
+  runtime.kind === "node" || runtime.kind === "static";
 
 export type WebContainerStatus =
   | "idle"
   | "booting"
-  | "waiting" // booted, but the project has no package.json yet
+  | "waiting" // booted, nothing the container can run yet
   | "installing"
-  | "running"
+  | "starting" // program running, no server yet
+  | "running" // a server is up and the preview URL is ready
+  | "exited" // the program finished (console apps)
   | "error";
 
 interface UseWebContainerProps {
@@ -71,11 +82,16 @@ export const useWebContainer = ({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [restartKey, setRestartKey] = useState(0);
+  // Everything (install + program), shown in the Logs tab
   const [terminalOutput, setTerminalOutput] = useState("");
+  // Only the program's own output, shown as the console preview
+  const [programOutput, setProgramOutput] = useState("");
+  const [exitCode, setExitCode] = useState<number | null>(null);
   // Exposed so the interactive terminal and agent commands can use it
   const [container, setContainer] = useState<WebContainer | null>(null);
 
   const containerRef = useRef<WebContainer | null>(null);
+  const programRef = useRef<WebContainerProcess | null>(null);
   const hasStartedRef = useRef(false);
   // path -> content already written to the container
   const syncedRef = useRef<Map<string, string>>(new Map());
@@ -84,54 +100,85 @@ export const useWebContainer = ({
 
   // Fetch files from Convex (auto-updates on changes)
   const files = useFiles(projectId);
-  const hasPackageJson = !!files?.some(isRootPackageJson);
+  const runtime = useMemo<ProjectRuntime>(
+    () => (files ? detectRuntime(files) : { kind: "none" }),
+    [files]
+  );
+  const runtimeRef = useRef(runtime);
+  useEffect(() => {
+    runtimeRef.current = runtime;
+  }, [runtime]);
+
+  const isRunnable = runsInContainer(runtime);
 
   const appendOutput = useCallback((data: string) => {
     setTerminalOutput((prev) => prev + data);
   }, []);
 
-  // Install dependencies and start the dev server
-  const runProject = useCallback(async (instance: WebContainer) => {
+  // Start (or restart) the program without reinstalling dependencies
+  const startProgram = useCallback(async (instance: WebContainer, target: ProjectRuntime) => {
+    if (!runsInContainer(target)) return;
+
+    const startCmd = (target.kind === "node" && settings?.devCommand) || target.start;
+
+    programRef.current?.kill();
+    setPreviewUrl(null);
+    setExitCode(null);
+    setProgramOutput(`\x1b[90m$ ${startCmd}\x1b[0m\n`);
+    setStatus("starting");
+    appendOutput(`\n$ ${startCmd}\n`);
+
+    const proc = await instance.spawn("jsh", ["-c", startCmd], { env: SPAWN_ENV });
+    programRef.current = proc;
+
+    proc.output
+      .pipeTo(new WritableStream({
+        write(data) {
+          appendOutput(data);
+          setProgramOutput((prev) => prev + data);
+        },
+      }))
+      .catch(() => {});
+
+    proc.exit.then((code) => {
+      // Ignore processes replaced by a newer run
+      if (programRef.current !== proc) return;
+      programRef.current = null;
+      setExitCode(code);
+      setPreviewUrl(null);
+      setStatus("exited");
+    });
+  }, [appendOutput, settings?.devCommand]);
+
+  // Install dependencies (when there is a package.json) and start the program
+  const runProject = useCallback(async (instance: WebContainer, target: ProjectRuntime) => {
+    if (!runsInContainer(target)) return;
+
     try {
-      setStatus("installing");
+      const installCmd = target.kind === "node"
+        ? settings?.installCommand || target.install
+        : null;
 
-      // Parse install command (default: npm install)
-      const installCmd = settings?.installCommand || "npm install";
-      const [installBin, ...installArgs] = installCmd.split(" ");
-      appendOutput(`$ ${installCmd}\n`)
-      const installProcess = await instance.spawn(installBin, installArgs);
-      installProcess.output.pipeTo(
-        new WritableStream({
-          write(data) {
-            appendOutput(data);
-          },
-        })
-      );
-      const installExitCode = await installProcess.exit;
+      if (installCmd) {
+        setStatus("installing");
+        appendOutput(`$ ${installCmd}\n`);
+        const installProcess = await instance.spawn("jsh", ["-c", installCmd], { env: SPAWN_ENV });
+        installProcess.output
+          .pipeTo(new WritableStream({ write: (data) => { appendOutput(data); } }))
+          .catch(() => {});
+        const installExitCode = await installProcess.exit;
 
-      if (installExitCode !== 0) {
-        throw new Error(
-          `${installCmd} failed with code ${installExitCode}`
-        );
+        if (installExitCode !== 0) {
+          throw new Error(`${installCmd} failed with code ${installExitCode}`);
+        }
       }
 
-      // Parse dev command (default: npm run dev)
-      const devCmd = settings?.devCommand || "npm run dev";
-      const [devBin, ...devArgs] = devCmd.split(" ");
-      appendOutput(`\n$ ${devCmd}\n`);
-      const devProcess = await instance.spawn(devBin, devArgs);
-      devProcess.output.pipeTo(
-        new WritableStream({
-          write(data) {
-            appendOutput(data);
-          },
-        })
-      );
+      await startProgram(instance, target);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Unknown error");
       setStatus("error");
     }
-  }, [appendOutput, settings?.installCommand, settings?.devCommand]);
+  }, [appendOutput, settings?.installCommand, startProgram]);
 
   // Initial boot and mount
   useEffect(() => {
@@ -166,10 +213,10 @@ export const useWebContainer = ({
 
         setContainer(instance);
 
-        if (files.some(isRootPackageJson)) {
-          await runProject(instance);
+        const initialRuntime = detectRuntime(files);
+        if (runsInContainer(initialRuntime)) {
+          await runProject(instance, initialRuntime);
         } else {
-          appendOutput("No package.json yet. The dev server starts as soon as the project has one.\n");
           setStatus("waiting");
         }
       } catch (error) {
@@ -185,18 +232,17 @@ export const useWebContainer = ({
     restartKey,
     projectId,
     runProject,
-    appendOutput,
   ]);
 
-  // Start the dev server once a package.json shows up (e.g. the agent scaffolded the app)
+  // Start once the project becomes runnable (e.g. the agent scaffolded an app)
   useEffect(() => {
     const instance = containerRef.current;
-    if (status !== "waiting" || !hasPackageJson || !instance) return;
+    if (status !== "waiting" || !isRunnable || !instance) return;
 
     // Short delay so the rest of the scaffolded files land first
-    const timer = setTimeout(() => runProject(instance), 1500);
+    const timer = setTimeout(() => runProject(instance, runtimeRef.current), 1500);
     return () => clearTimeout(timer);
-  }, [status, hasPackageJson, runProject]);
+  }, [status, isRunnable, runProject]);
 
   // Sync file changes into the container (hot-reload), including deletes and renames
   useEffect(() => {
@@ -250,10 +296,18 @@ export const useWebContainer = ({
     }
   }, [enabled]);
 
+  // Run the program again with the latest files (console apps, crashed servers)
+  const rerun = useCallback(() => {
+    const instance = containerRef.current;
+    if (!instance) return;
+    syncPromiseRef.current.then(() => startProgram(instance, runtimeRef.current));
+  }, [startProgram]);
+
   // Restart the entire WebContainer process
   const restart = useCallback(() => {
     teardownWebContainer();
     containerRef.current = null;
+    programRef.current = null;
     hasStartedRef.current = false;
     syncedRef.current = new Map();
     syncPromiseRef.current = Promise.resolve();
@@ -261,6 +315,8 @@ export const useWebContainer = ({
     setStatus("idle");
     setPreviewUrl(null);
     setError(null);
+    setExitCode(null);
+    setProgramOutput("");
     setRestartKey((k) => k + 1);
   }, []);
 
@@ -269,7 +325,11 @@ export const useWebContainer = ({
     previewUrl,
     error,
     restart,
+    rerun,
+    runtime,
     terminalOutput,
+    programOutput,
+    exitCode,
     appendOutput,
     container,
     waitForSync,
