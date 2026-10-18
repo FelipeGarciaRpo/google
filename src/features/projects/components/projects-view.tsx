@@ -10,11 +10,11 @@ import {
 } from "lucide-react";
 import { FaGithub } from "react-icons/fa";
 import { Kbd } from "@/components/ui/kbd";
-import { useCreateProject, useProjectsPartial } from "../hooks/use-project";
-import { adjectives, animals, colors, uniqueNamesGenerator } from "unique-names-generator";
+import { useProjectsPartial } from "../hooks/use-project";
 import { useEffect, useState } from "react";
 import { ProjectsCommandDialog } from "./projects-command-dialog";
 import { ImportGithubDialog } from "./import-github-dialog";
+import { NewProjectDialog } from "./new-project-dialog";
 import Image from "next/image";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
@@ -177,9 +177,9 @@ const LastUpdatedCard = ({ onViewAll }: { onViewAll: () => void }) => {
 export const ProjectsView = () => {
     const [commandDialogOpen, setCommandDialogOpen] = useState(false);
     const [importDialogOpen, setImportDialogOpen] = useState(false);
+    const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<"chats" | "build">("build");
-    const createProject = useCreateProject();
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -187,6 +187,7 @@ export const ProjectsView = () => {
             if ((e.metaKey || e.ctrlKey) && e.key === "k") { e.preventDefault(); setCommandDialogOpen(true); }
             if ((e.metaKey || e.ctrlKey) && e.key === "b") { e.preventDefault(); setSidebarOpen(v => !v); }
             if ((e.metaKey || e.ctrlKey) && e.key === "i") { e.preventDefault(); setImportDialogOpen(true); }
+            if ((e.metaKey || e.ctrlKey) && e.key === "j") { e.preventDefault(); setNewProjectDialogOpen(true); }
         };
         document.addEventListener("keydown", handleKeyDown);
         return () => document.removeEventListener("keydown", handleKeyDown);
@@ -196,6 +197,7 @@ export const ProjectsView = () => {
         <>
             <ProjectsCommandDialog open={commandDialogOpen} onOpenChange={setCommandDialogOpen} />
             <ImportGithubDialog open={importDialogOpen} onOpenChange={setImportDialogOpen} />
+            <NewProjectDialog open={newProjectDialogOpen} onOpenChange={setNewProjectDialogOpen} />
 
             <div className="min-h-screen flex flex-col relative"
                 style={{ background: "#0d0f14", fontFamily: "'JetBrains Mono', monospace" }}>
@@ -349,9 +351,7 @@ export const ProjectsView = () => {
                                     {
                                         icon: <SparkleIcon className="size-4" style={{ color: "#3b82f6" }} />,
                                         label: "New Project", sub: "Start from scratch", kbd: "ctrl+J",
-                                        onClick: () => createProject({
-                                            name: uniqueNamesGenerator({ dictionaries: [adjectives, animals, colors], separator: "-", length: 3 })
-                                        }),
+                                        onClick: () => setNewProjectDialogOpen(true),
                                     },
                                     {
                                         icon: <FaGithub className="size-4" style={{ color: "#64748b" }} />,

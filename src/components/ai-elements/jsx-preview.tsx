@@ -246,6 +246,7 @@ export const JSXPreviewContent = memo(
 
     // During streaming, if the current JSX errored, re-render with last good version
     const displayJsx =
+      // eslint-disable-next-line react-hooks/refs
       isStreaming && hadError ? lastGoodJsxRef.current : processedJsx;
 
     return (
