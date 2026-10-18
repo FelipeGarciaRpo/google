@@ -5,6 +5,8 @@ import {
   Loader2Icon,
   AlertTriangleIcon,
   RefreshCwIcon,
+  RotateCwIcon,
+  PowerIcon,
   GlobeIcon,
   PlayIcon,
   SquareIcon,
@@ -31,6 +33,8 @@ interface PreviewViewProps {
   webcontainer: WebContainerState;
   // Whether the Preview tab is visible (Python only runs once it is)
   active: boolean;
+  // Increases every time the agent finishes a task
+  refreshToken: number;
 }
 
 const CenteredMessage = ({
@@ -75,11 +79,22 @@ const ConsoleOutput = ({
   </div>
 );
 
-export const PreviewView = ({ projectId, webcontainer, active }: PreviewViewProps) => {
+export const PreviewView = ({ projectId, webcontainer, active, refreshToken }: PreviewViewProps) => {
   const project = useProject(projectId);
   const files = useFiles(projectId);
   const python = usePythonRunner();
-  const { status, previewUrl, error, restart, rerun, runtime, programOutput, exitCode } = webcontainer;
+  const {
+    status,
+    previewUrl,
+    previewKey,
+    error,
+    restart,
+    rerun,
+    reloadPreview,
+    runtime,
+    programOutput,
+    exitCode,
+  } = webcontainer;
 
   const runPythonProject = python.run;
   const runPython = useCallback(() => {
@@ -98,6 +113,26 @@ export const PreviewView = ({ projectId, webcontainer, active }: PreviewViewProp
     }, 0);
     return () => clearTimeout(timer);
   }, [active, runtime.kind, files, runPython]);
+
+  // When the agent finishes, run the Python project again with its new code
+  // (web and Node projects are refreshed by the WebContainer hook)
+  const handledRefreshRef = useRef(refreshToken);
+  useEffect(() => {
+    if (refreshToken === handledRefreshRef.current || runtime.kind !== "python") return;
+
+    if (!active) {
+      // Run it the next time the preview is opened
+      handledRefreshRef.current = refreshToken;
+      pythonStartedRef.current = false;
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      handledRefreshRef.current = refreshToken;
+      runPython();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [refreshToken, active, runtime.kind, runPython]);
 
   const isPython = runtime.kind === "python";
   const isLoading = status === "booting" || status === "installing";
@@ -155,11 +190,11 @@ export const PreviewView = ({ projectId, webcontainer, active }: PreviewViewProp
             size="icon-sm"
             variant="ghost"
             className="rounded-full"
-            disabled={isLoading}
-            onClick={restart}
-            title="Restart container"
+            disabled={!previewUrl}
+            onClick={reloadPreview}
+            title="Reload preview"
           >
-            <RefreshCwIcon className="size-3.5" />
+            <RotateCwIcon className="size-3.5" />
           </Button>
         )}
 
@@ -174,6 +209,19 @@ export const PreviewView = ({ projectId, webcontainer, active }: PreviewViewProp
           <span className="hidden md:inline-flex shrink-0 items-center h-7 px-2.5 rounded-full border text-[11px] text-muted-foreground">
             {runtimeLabel}
           </span>
+        )}
+
+        {!isPython && (
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            className="rounded-full"
+            disabled={isLoading}
+            onClick={restart}
+            title="Restart environment (reinstall and start again)"
+          >
+            <PowerIcon className="size-3.5" />
+          </Button>
         )}
 
         {!isPython && (
@@ -215,7 +263,7 @@ export const PreviewView = ({ projectId, webcontainer, active }: PreviewViewProp
           </>
         ) : error ? (
           <CenteredMessage icon={<AlertTriangleIcon className="size-6" />} title={error}>
-            <p className="text-xs">Check the Logs tab in the bottom panel for details.</p>
+            <p className="text-xs">Check the Output tab in the bottom panel for details.</p>
             <Button size="sm" variant="outline" className="rounded-full" onClick={restart}>
               <RefreshCwIcon className="size-4" />
               Restart
@@ -223,6 +271,8 @@ export const PreviewView = ({ projectId, webcontainer, active }: PreviewViewProp
           </CenteredMessage>
         ) : previewUrl ? (
           <iframe
+            // A new key remounts the iframe: reload button and agent refreshes
+            key={previewKey}
             src={previewUrl}
             className="size-full border-0 bg-white"
             title="Preview"

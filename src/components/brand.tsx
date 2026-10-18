@@ -22,6 +22,8 @@ export const BrandMark = ({ collapsed = false, className }: BrandMarkProps) => {
           alt=""
           fill
           sizes="28px"
+          // Above the fold on every page
+          loading="eager"
           className="object-cover scale-125"
         />
       </span>

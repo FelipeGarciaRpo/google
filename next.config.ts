@@ -2,6 +2,10 @@ import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // The dev "N" badge sat on top of the user button in the sidebar
+  devIndicators: {
+    position: "bottom-right",
+  },
   async headers() {
     return [
       {

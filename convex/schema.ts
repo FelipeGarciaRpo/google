@@ -62,7 +62,21 @@ export default defineSchema({
                 v.literal("completed"),
                 v.literal("cancelled")
             )
-        ) 
+        ),
+        // What the agent did while working (tool calls), used for the live progress
+        activity: v.optional(v.array(v.object({
+            kind: v.union(
+                v.literal("start"),
+                v.literal("explore"),
+                v.literal("read"),
+                v.literal("write"),
+                v.literal("command"),
+                v.literal("info")
+            ),
+            label: v.string(),
+            at: v.number(),
+        }))),
+        completedAt: v.optional(v.number()),
     }).index("by_conversation", ["conversationId"])
       .index("by_project_status", ["projectId", "status"]),
 

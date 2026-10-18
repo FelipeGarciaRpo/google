@@ -3,7 +3,9 @@
 import { cn } from "@/lib/utils";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { useCallback, useEffect, useState } from "react";
+import { useQuery } from "convex/react";
 import { Allotment } from "allotment";
+import { api } from "../../../../convex/_generated/api";
 import { Code2Icon, EyeIcon, SquareTerminalIcon } from "lucide-react";
 import { FileExplorer } from "./file-explorer";
 import { EditorView } from "@/features/editor/components/editor-view";
@@ -72,11 +74,30 @@ export const ProjectIdView = ({
     settings: project?.settings,
   });
 
-  // Show the Logs tab while the agent runs a command
+  // Show the Output tab while the agent runs a command
   const handleAgentCommandStart = useCallback(() => {
     setPanelOpen(true);
-    setPanelTab("logs");
+    setPanelTab("output");
   }, []);
+
+  // When the agent finishes, refresh the preview so it shows the final work
+  const agentBusy = useQuery(api.conversations.isProjectBusy, { projectId }) ?? false;
+  const [agentFinishedCount, setAgentFinishedCount] = useState(0);
+  const [previousAgentBusy, setPreviousAgentBusy] = useState(agentBusy);
+  if (agentBusy !== previousAgentBusy) {
+    setPreviousAgentBusy(agentBusy);
+    if (previousAgentBusy && !agentBusy) {
+      setAgentFinishedCount((count) => count + 1);
+    }
+  }
+
+  const { refreshAfterAgent } = webcontainer;
+  useEffect(() => {
+    if (agentFinishedCount === 0) return;
+    // Short delay so the agent's last file writes reach the browser first
+    const timer = setTimeout(() => refreshAfterAgent(), 800);
+    return () => clearTimeout(timer);
+  }, [agentFinishedCount, refreshAfterAgent]);
 
   useAgentCommands({
     projectId,
@@ -153,6 +174,7 @@ export const ProjectIdView = ({
                   projectId={projectId}
                   webcontainer={webcontainer}
                   active={activeView === "preview"}
+                  refreshToken={agentFinishedCount}
                 />
               </div>
             </div>

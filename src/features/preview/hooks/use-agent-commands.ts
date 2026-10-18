@@ -10,9 +10,12 @@ import { Doc, Id } from "../../../../convex/_generated/dataModel";
 
 // Colors and cursor moves are noise for the model
 const ANSI_PATTERN = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07/g;
+// "Go to column N" and "erase line": how tools like Vite redraw a progress line
+const LINE_REDRAW_PATTERN = /\x1b\[\d*G|\x1b\[[0-2]?K/g;
 
 const cleanOutput = (raw: string) =>
   raw
+    .replace(LINE_REDRAW_PATTERN, "\r")
     .replace(ANSI_PATTERN, "")
     .split("\n")
     // Progress bars redraw a line with \r: keep only its final state

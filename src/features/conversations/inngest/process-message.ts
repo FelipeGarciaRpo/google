@@ -29,6 +29,7 @@ import { createGlobFilesTool } from './tools/glob-files';
 import { createGrepFilesTool } from './tools/grep-files';
 import { createEditFileTool } from './tools/edit-file';
 import { createRunCommandTool } from './tools/run-command';
+import { createActivityTracker } from './activity';
 
 interface MessageEvent {
   messageId: Id<"messages">;
@@ -105,8 +106,13 @@ export const processMessage = inngest.createFunction(
       throw new NonRetriableError("No AI provider is configured. Add GOOGLE_GENERATIVE_AI_API_KEY or GROQ_API_KEY.");
     }
 
+    // Live progress shown in the chat while the agent works
+    const activity = createActivityTracker({ internalKey, messageId });
+
     // TODO: Check if this is needed
     await step.sleep("wait-for-db-sync", "3s");
+
+    await activity.record(step, "start", "Reading your request");
 
     // Get conversation for title generation check
     const conversation = await step.run("get-conversation", async () => {
@@ -194,7 +200,7 @@ export const processMessage = inngest.createFunction(
       createDeleteFilesTool({ internalKey }),
       createRunCommandTool({ internalKey, projectId }),
       createScrapeUrlsTool(),
-    ];
+    ].map((tool) => activity.track(tool));
 
     let assistantResponse: string | null = null;
     let answeredBy: string | null = null;
@@ -253,6 +259,11 @@ export const processMessage = inngest.createFunction(
       } catch (error) {
         lastError = error;
         console.warn(`Model ${modelId} failed, trying the next one`, error);
+
+        const next = modelChain[attempt + 1];
+        if (next) {
+          await activity.record(step, "info", `${getModelLabel(modelId)} failed, switching to ${getModelLabel(next)}`);
+        }
       }
     }
 

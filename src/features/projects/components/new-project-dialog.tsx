@@ -25,7 +25,7 @@ export const NewProjectDialog = ({
   onOpenChange,
 }: NewProjectDialogProps) => {
   const [input, setInput] = useState("");
-  const { createProject, isSubmitting } = useCreateProjectWithPrompt();
+  const { createProject, isSubmitting, isOpening } = useCreateProjectWithPrompt();
   const [modelId, setModelId] = useSelectedModel();
 
   const handleSubmit = async (text: string) => {
@@ -54,8 +54,8 @@ export const NewProjectDialog = ({
           value={input}
           onValueChange={setInput}
           onSubmit={handleSubmit}
-          disabled={isSubmitting}
-          submitLabel={isSubmitting ? "Creating…" : "Build"}
+          disabled={isSubmitting || isOpening}
+          submitLabel={isSubmitting ? "Creating project…" : isOpening ? "Opening project…" : "Build"}
           placeholder="Describe the app you want to build…"
           className="bg-popover"
           toolbar={<ModelSelector value={modelId} onChange={setModelId} />}

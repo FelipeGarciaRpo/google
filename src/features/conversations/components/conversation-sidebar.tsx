@@ -25,7 +25,6 @@ import {
   MessageActions,
   MessageAction,
 } from "@/components/ai-elements/message";
-import { Shimmer } from "@/components/ai-elements/shimmer";
 import { StudioPromptBox } from "@/components/studio-prompt-box";
 import { cn } from "@/lib/utils";
 import { ModelSelector } from "@/features/ai/components/model-selector";
@@ -41,6 +40,7 @@ import {
 import { Id } from "../../../../convex/_generated/dataModel";
 import { DEFAULT_CONVERSATION_TITLE } from "../../../../convex/constants";
 import { PastConversationsDialog } from "./past-conversations-dialog";
+import { AgentProgress, AgentSteps } from "./agent-progress";
 
 // Starter ideas shown on an empty conversation, like AI Studio's model cards
 const STARTERS = [
@@ -257,15 +257,27 @@ export const ConversationSidebar = ({
                 key={message._id}
                 from={message.role}
               >
-                <MessageContent>
+                <MessageContent className={cn(message.status === "processing" && "w-full")}>
                   {message.status === "processing" ? (
-                    <Shimmer className="text-sm">Thinking...</Shimmer>
+                    <AgentProgress
+                      activity={message.activity ?? []}
+                      startedAt={message._creationTime}
+                    />
                   ) : message.status === "cancelled" ? (
                     <span className="text-muted-foreground italic">
                       Request cancelled
                     </span>
                   ) : (
-                    <MessageResponse>{message.content}</MessageResponse>
+                    <>
+                      {message.role === "assistant" && message.activity && (
+                        <AgentSteps
+                          activity={message.activity}
+                          startedAt={message._creationTime}
+                          completedAt={message.completedAt}
+                        />
+                      )}
+                      <MessageResponse>{message.content}</MessageResponse>
+                    </>
                   )}
                 </MessageContent>
                 {message.role === "assistant" &&
