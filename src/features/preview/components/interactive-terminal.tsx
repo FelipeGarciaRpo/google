@@ -50,13 +50,17 @@ export const InteractiveTerminal = ({ container }: InteractiveTerminalProps) => 
         .catch(() => {});
       input = shell.input.getWriter();
 
-      shell.exit.then((code) => {
-        if (!disposed) terminal.write(`\r\n\x1b[90m[shell exited with code ${code}]\x1b[0m\r\n`);
-      });
+      shell.exit
+        .then((code) => {
+          if (!disposed) terminal.write(`\r\n\x1b[90m[shell exited with code ${code}]\x1b[0m\r\n`);
+        })
+        // teardown() aborts every process (restart, switching projects): expected
+        .catch(() => {});
     };
 
     const dataListener = terminal.onData((data) => {
-      input?.write(data);
+      // The stream is closed once the container is torn down
+      input?.write(data).catch(() => {});
     });
 
     // Keep the shell's idea of the terminal size in sync with the panel

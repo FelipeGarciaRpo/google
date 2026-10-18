@@ -137,7 +137,16 @@ export const useWebContainer = ({
     setStatus("starting");
     appendOutput(`\n$ ${startCmd}\n`);
 
-    const proc = await instance.spawn("jsh", ["-c", startCmd], { env: SPAWN_ENV });
+    let proc: WebContainerProcess;
+    try {
+      proc = await instance.spawn("jsh", ["-c", startCmd], { env: SPAWN_ENV });
+    } catch (error) {
+      // The container went away (restart or project switch): nothing to report
+      if (containerRef.current !== instance) return;
+      setError(error instanceof Error ? error.message : "Unable to start the program");
+      setStatus("error");
+      return;
+    }
     programRef.current = proc;
 
     proc.output
@@ -149,14 +158,18 @@ export const useWebContainer = ({
       }))
       .catch(() => {});
 
-    proc.exit.then((code) => {
-      // Ignore processes replaced by a newer run
-      if (programRef.current !== proc) return;
-      programRef.current = null;
-      setExitCode(code);
-      setPreviewUrl(null);
-      setStatus("exited");
-    });
+    proc.exit
+      .then((code) => {
+        // Ignore processes replaced by a newer run
+        if (programRef.current !== proc) return;
+        programRef.current = null;
+        setExitCode(code);
+        setPreviewUrl(null);
+        setStatus("exited");
+      })
+      // teardown() rejects every running process with "Process aborted"
+      // (restart button, switching projects): that's expected
+      .catch(() => {});
   }, [appendOutput, settings?.devCommand]);
 
   // Install dependencies (when there is a package.json) and start the program
@@ -185,6 +198,8 @@ export const useWebContainer = ({
       installedDepsRef.current = target.kind === "node" ? target.dependencyKey : null;
       await startProgram(instance, target);
     } catch (error) {
+      // A restart tore this container down mid-install: the new one takes over
+      if (containerRef.current !== instance) return;
       setError(error instanceof Error ? error.message : "Unknown error");
       setStatus("error");
     }
@@ -199,12 +214,13 @@ export const useWebContainer = ({
     hasStartedRef.current = true;
 
     const start = async () => {
+      let instance: WebContainer | null = null;
       try {
         setStatus("booting");
         setError(null);
         setTerminalOutput("");
 
-        const instance = await getWebContainer(projectId);
+        instance = await getWebContainer(projectId);
         containerRef.current = instance;
 
         await instance.mount(buildFileTree(files));
@@ -230,6 +246,8 @@ export const useWebContainer = ({
           setStatus("waiting");
         }
       } catch (error) {
+        // Torn down while booting (restart or project switch): ignore
+        if (instance && containerRef.current !== instance) return;
         setError(error instanceof Error ? error.message : "Unknown error");
         setStatus("error");
       }
