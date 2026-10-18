@@ -1,20 +1,35 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { WebContainer } from "@webcontainer/api";
 
-import { 
+import {
   buildFileTree,
   getFilePath
 } from "@/features/preview/utils/file-tree";
 import { useFiles } from "@/features/projects/hooks/use-files";
 
-import { api } from "../../../../convex/_generated/api";
-import { Id } from "../../../../convex/_generated/dataModel";
+import { Doc, Id } from "../../../../convex/_generated/dataModel";
 
-// Singleton WebContainer instance
+// Singleton WebContainer instance (the API allows one per page)
 let webcontainerInstance: WebContainer | null = null;
 let bootPromise: Promise<WebContainer> | null = null;
+let bootedForProject: string | null = null;
 
-const getWebContainer = async (): Promise<WebContainer> => {
+const teardownWebContainer = () => {
+  if (webcontainerInstance) {
+    webcontainerInstance.teardown();
+    webcontainerInstance = null;
+  }
+  bootPromise = null;
+  bootedForProject = null;
+};
+
+const getWebContainer = async (projectId: string): Promise<WebContainer> => {
+  // A different project needs a clean file system and no leftover processes
+  if (bootedForProject && bootedForProject !== projectId) {
+    teardownWebContainer();
+  }
+  bootedForProject = projectId;
+
   if (webcontainerInstance) {
     return webcontainerInstance;
   }
@@ -27,13 +42,16 @@ const getWebContainer = async (): Promise<WebContainer> => {
   return webcontainerInstance;
 };
 
-const teardownWebContainer = () => {
-  if (webcontainerInstance) {
-    webcontainerInstance.teardown();
-    webcontainerInstance = null;
-  }
-  bootPromise = null;
-};
+const isRootPackageJson = (file: Doc<"files">) =>
+  file.type === "file" && file.name === "package.json" && !file.parentId;
+
+export type WebContainerStatus =
+  | "idle"
+  | "booting"
+  | "waiting" // booted, but the project has no package.json yet
+  | "installing"
+  | "running"
+  | "error";
 
 interface UseWebContainerProps {
   projectId: Id<"projects">;
@@ -49,23 +67,73 @@ export const useWebContainer = ({
   enabled,
   settings,
 }: UseWebContainerProps) => {
-  const [status, setStatus] = useState<
-    "idle" | "booting" | "installing" | "running" | "error"
-  >("idle");
+  const [status, setStatus] = useState<WebContainerStatus>("idle");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [restartKey, setRestartKey] = useState(0);
   const [terminalOutput, setTerminalOutput] = useState("");
+  // Exposed so the interactive terminal and agent commands can use it
+  const [container, setContainer] = useState<WebContainer | null>(null);
 
   const containerRef = useRef<WebContainer | null>(null);
   const hasStartedRef = useRef(false);
+  // path -> content already written to the container
+  const syncedRef = useRef<Map<string, string>>(new Map());
 
   // Fetch files from Convex (auto-updates on changes)
   const files = useFiles(projectId);
+  const hasPackageJson = !!files?.some(isRootPackageJson);
+
+  const appendOutput = useCallback((data: string) => {
+    setTerminalOutput((prev) => prev + data);
+  }, []);
+
+  // Install dependencies and start the dev server
+  const runProject = useCallback(async (instance: WebContainer) => {
+    try {
+      setStatus("installing");
+
+      // Parse install command (default: npm install)
+      const installCmd = settings?.installCommand || "npm install";
+      const [installBin, ...installArgs] = installCmd.split(" ");
+      appendOutput(`$ ${installCmd}\n`)
+      const installProcess = await instance.spawn(installBin, installArgs);
+      installProcess.output.pipeTo(
+        new WritableStream({
+          write(data) {
+            appendOutput(data);
+          },
+        })
+      );
+      const installExitCode = await installProcess.exit;
+
+      if (installExitCode !== 0) {
+        throw new Error(
+          `${installCmd} failed with code ${installExitCode}`
+        );
+      }
+
+      // Parse dev command (default: npm run dev)
+      const devCmd = settings?.devCommand || "npm run dev";
+      const [devBin, ...devArgs] = devCmd.split(" ");
+      appendOutput(`\n$ ${devCmd}\n`);
+      const devProcess = await instance.spawn(devBin, devArgs);
+      devProcess.output.pipeTo(
+        new WritableStream({
+          write(data) {
+            appendOutput(data);
+          },
+        })
+      );
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Unknown error");
+      setStatus("error");
+    }
+  }, [appendOutput, settings?.installCommand, settings?.devCommand]);
 
   // Initial boot and mount
   useEffect(() => {
-    if (!enabled || !files || files.length === 0 || hasStartedRef.current) {
+    if (!enabled || !files || hasStartedRef.current) {
       return;
     }
 
@@ -77,55 +145,31 @@ export const useWebContainer = ({
         setError(null);
         setTerminalOutput("");
 
-        const appendOutput = (data: string) => {
-          setTerminalOutput((prev) => prev + data);
-        };
+        const instance = await getWebContainer(projectId);
+        containerRef.current = instance;
 
-        const container = await getWebContainer();
-        containerRef.current = container;
+        await instance.mount(buildFileTree(files));
 
-        const fileTree = buildFileTree(files);
-        await container.mount(fileTree);
+        const filesMap = new Map(files.map((f) => [f._id, f]));
+        syncedRef.current = new Map(
+          files
+            .filter((f) => f.type === "file" && !f.storageId && f.content !== undefined)
+            .map((f) => [getFilePath(f, filesMap), f.content ?? ""])
+        );
 
-        container.on("server-ready", (_port, url) => {
+        instance.on("server-ready", (_port, url) => {
           setPreviewUrl(url);
           setStatus("running");
         });
 
-        setStatus("installing");
+        setContainer(instance);
 
-        // Parse install command (default: npm install)
-        const installCmd = settings?.installCommand || "npm install";
-        const [installBin, ...installArgs] = installCmd.split(" ");
-        appendOutput(`$ ${installCmd}\n`)
-        const installProcess = await container.spawn(installBin, installArgs);
-        installProcess.output.pipeTo(
-          new WritableStream({
-            write(data) {
-              appendOutput(data);
-            },
-          })
-        );
-        const installExitCode = await installProcess.exit;
-
-        if (installExitCode !== 0) {
-          throw new Error(
-            `${installCmd} failed with code ${installExitCode}`
-          );
+        if (files.some(isRootPackageJson)) {
+          await runProject(instance);
+        } else {
+          appendOutput("No package.json yet. The dev server starts as soon as the project has one.\n");
+          setStatus("waiting");
         }
-
-        // Parse dev command (default: npm run dev)
-        const devCmd = settings?.devCommand || "npm run dev";
-        const [devBin, ...devArgs] = devCmd.split(" ");
-        appendOutput(`\n$ ${devCmd}\n`);
-        const devProcess = await container.spawn(devBin, devArgs);
-        devProcess.output.pipeTo(
-          new WritableStream({
-            write(data) {
-              appendOutput(data);
-            },
-          })
-        );
       } catch (error) {
         setError(error instanceof Error ? error.message : "Unknown error");
         setStatus("error");
@@ -137,23 +181,58 @@ export const useWebContainer = ({
     enabled,
     files,
     restartKey,
-    settings?.devCommand,
-    settings?.installCommand,
+    projectId,
+    runProject,
+    appendOutput,
   ]);
 
-  // Sync file changes (hot-reload)
+  // Start the dev server once a package.json shows up (e.g. the agent scaffolded the app)
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container || !files || status !== "running") return;
+    const instance = containerRef.current;
+    if (status !== "waiting" || !hasPackageJson || !instance) return;
 
-    const filesMap = new Map(files.map((f) => [f._id, f]));
+    // Short delay so the rest of the scaffolded files land first
+    const timer = setTimeout(() => runProject(instance), 1500);
+    return () => clearTimeout(timer);
+  }, [status, hasPackageJson, runProject]);
 
-    for (const file of files) {
-      if (file.type !== "file" || file.storageId || !file.content) continue;
+  // Sync file changes into the container (hot-reload), including deletes and renames
+  useEffect(() => {
+    const instance = containerRef.current;
+    if (!instance || !files || status === "idle" || status === "booting") return;
 
-      const filePath = getFilePath(file, filesMap);
-      container.fs.writeFile(filePath, file.content);
-    }
+    const sync = async () => {
+      const filesMap = new Map(files.map((f) => [f._id, f]));
+      const next = new Map<string, string>();
+
+      for (const file of files) {
+        if (file.type !== "file" || file.storageId || file.content === undefined) continue;
+
+        const filePath = getFilePath(file, filesMap);
+        next.set(filePath, file.content);
+
+        if (syncedRef.current.get(filePath) === file.content) continue;
+
+        try {
+          const dir = filePath.split("/").slice(0, -1).join("/");
+          if (dir) await instance.fs.mkdir(dir, { recursive: true });
+          await instance.fs.writeFile(filePath, file.content);
+        } catch {
+          // A failed write is retried on the next change
+          next.delete(filePath);
+        }
+      }
+
+      for (const filePath of syncedRef.current.keys()) {
+        if (!next.has(filePath)) {
+          await instance.fs.rm(filePath, { force: true }).catch(() => {});
+        }
+      }
+
+      syncedRef.current = next;
+    };
+
+    sync();
   }, [files, status]);
 
   // Reset when disabled
@@ -171,6 +250,8 @@ export const useWebContainer = ({
     teardownWebContainer();
     containerRef.current = null;
     hasStartedRef.current = false;
+    syncedRef.current = new Map();
+    setContainer(null);
     setStatus("idle");
     setPreviewUrl(null);
     setError(null);
@@ -183,5 +264,9 @@ export const useWebContainer = ({
     error,
     restart,
     terminalOutput,
+    appendOutput,
+    container,
   };
 };
+
+export type WebContainerState = ReturnType<typeof useWebContainer>;
