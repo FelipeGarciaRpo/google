@@ -1,6 +1,8 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 
 const isPublicRoute=createRouteMatcher([
+  // Landing page: signed-out visitors see the public hero instead of a redirect
+  "/",
   "/api/inngest(.*)",
   "/monitoring(.*)",
 ]);

@@ -319,12 +319,15 @@ export const ExportPopover = ({ projectId }: ExportPopoverProps) => {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <div className="flex items-center gap-1.5 h-full px-3 cursor-pointer text-muted-foreground border-l hover:bg-accent/30">
+        <button
+          type="button"
+          className="flex items-center gap-2 h-9 px-4 rounded-full border text-sm text-foreground hover:bg-accent transition-colors"
+        >
           {getStatusIcon()}
-          <span className="text-sm">Export</span>
-        </div>
+          <span>Export to GitHub</span>
+        </button>
       </PopoverTrigger>
-      <PopoverContent className="w-80" align="start">
+      <PopoverContent className="w-80 rounded-xl" align="end">
         {renderContent()}
       </PopoverContent>
     </Popover>

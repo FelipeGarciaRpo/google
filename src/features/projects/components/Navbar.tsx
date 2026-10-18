@@ -1,32 +1,15 @@
 "use client";
 
-import {
-    Breadcrumb,
-    BreadcrumbItem,
-    BreadcrumbLink,
-    BreadcrumbList,
-    BreadcrumbPage,
-    BreadcrumbSeparator
-} from "@/components/ui/breadcrumb";
-
-import { Id } from "../../../../convex/_generated/dataModel";
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import Link from "next/link";
-import Image from "next/image";
-import { Poppins } from "next/font/google";
-import { cn } from "@/lib/utils";
-import { UserButton } from "@clerk/nextjs";
-import { useProject, useRenameProject } from "../hooks/use-project";
 import { useState } from "react";
-import { CloudCheckIcon, LoaderIcon } from "lucide-react";
+import { CloudCheckIcon, LoaderIcon, PencilIcon } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
-const font = Poppins({
-    subsets: ["latin"],
-    weight: ["400", "500", "600", "700"]
-})
+import { Id } from "../../../../convex/_generated/dataModel";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useProject, useRenameProject } from "../hooks/use-project";
+import { ExportPopover } from "./export-popover";
 
+// Page header, like the "Playground" title bar in AI Studio
 export const Navbar = ({
     projectId
 }: {
@@ -62,87 +45,50 @@ export const Navbar = ({
     }
 
     return(
-        <nav className="flex justify-between items-center gap-x-2 p-2 bg-sidebar border-b">
-            <div className="flex items-center gap-x-2">
-                <Breadcrumb>
-                <BreadcrumbList className="gap-0!">
-                    <BreadcrumbItem>
-                        <BreadcrumbLink 
-                            className="flex items-center gap-1.5"
-                            asChild
-                        >
-                            <Button
-                            variant="ghost"
-                            className="w-fit! p-1.5! h-7!"
-                            asChild
-                            >
-                                <Link href="/">
-                                    <Image 
-                                        src="/blue2.png"
-                                        alt="Logo"
-                                        width={30}
-                                        height={30}
-                                    />
-                                    <span className={cn(
-                                        "text-sm font-medium",
-                                        font.className
-                                    )}>
-                                        Telemetry
-                                    </span>
-                                    <span className="text-blue-700 text-sm font-medium"> Studio</span>
-                                </Link>
-                            </Button>
-
-                        </BreadcrumbLink>
-                    </BreadcrumbItem>
-                    <BreadcrumbSeparator className="ml-0! mr-1"/>
-                    <BreadcrumbItem>
-                    { isRenaming ? (
-                        <input 
-                            autoFocus
-                            type="text"
-                            value={name}
-                            onChange={(e)=>setName(e.target.value)}
-                            onFocus={(e)=>e.currentTarget.select()}
-                            onBlur={handleSubmit}
-                            onKeyDown={handleKeyDown}
-                            className="ml-2 pl-2 text-sm bg-transparent text-foreground outline-none focus:ring-1 focus:ring-inset focus:ring-ring font-medium max-w-40 truncate rounded-xl"
-                        />
-                    ): (
-                        <BreadcrumbPage
-                            onClick={handleStartRename}
-                            className="ml-2 pl-2 text-sm cursor-pointer hover:text-primary font-medium max-w-40 truncate">
-                        {project?.name ?? "Loading..."}
-                        </BreadcrumbPage>
-                    )}  
-                    </BreadcrumbItem>
-                    </BreadcrumbList>
-                </Breadcrumb>
-                <TooltipProvider>
-                {project?.importStatus === "importing" ? (
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <LoaderIcon className="size-4 text-muted-foreground animate-spin"/>
-                        </TooltipTrigger>
-                        <TooltipContent>Importing...</TooltipContent>
-                    </Tooltip>
+        <header className="h-14 shrink-0 flex items-center justify-between gap-4 px-5 border-b">
+            <div className="flex items-center gap-2 min-w-0">
+                { isRenaming ? (
+                    <input
+                        autoFocus
+                        type="text"
+                        value={name}
+                        onChange={(e)=>setName(e.target.value)}
+                        onFocus={(e)=>e.currentTarget.select()}
+                        onBlur={handleSubmit}
+                        onKeyDown={handleKeyDown}
+                        className="text-lg bg-transparent text-foreground outline-none! border-b border-primary max-w-80"
+                    />
                 ): (
+                    <button
+                        type="button"
+                        onClick={handleStartRename}
+                        className="group flex items-center gap-2 min-w-0 text-lg text-foreground"
+                        title="Rename project"
+                    >
+                        <span className="truncate">{project?.name ?? "Loading..."}</span>
+                        <PencilIcon className="size-3.5 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"/>
+                    </button>
+                )}
+                <TooltipProvider>
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <CloudCheckIcon className="size-5 text-muted-foreground"/>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                Saved{" "}
-                                {project?.updatedAt ? formatDistanceToNow(project.updatedAt, {addSuffix: true})
-                                : "Loading..."}
+                            <span className="text-muted-foreground">
+                                {project?.importStatus === "importing"
+                                    ? <LoaderIcon className="size-4 animate-spin"/>
+                                    : <CloudCheckIcon className="size-4"/>}
+                            </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            {project?.importStatus === "importing"
+                                ? "Importing..."
+                                : <>Saved{" "}{project?.updatedAt ? formatDistanceToNow(project.updatedAt, {addSuffix: true}) : ""}</>}
                         </TooltipContent>
                     </Tooltip>
-                    )}
                 </TooltipProvider>
             </div>
             <div className="flex items-center gap-2">
-                <UserButton/>
+                <ExportPopover projectId={projectId}/>
             </div>
-        </nav>
+        </header>
     )
 }

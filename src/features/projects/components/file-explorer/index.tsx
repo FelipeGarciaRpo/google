@@ -55,15 +55,15 @@ export const FileExplorer = ({
                 <div 
                 role="button"
                 onClick={()=>setIsOpen((value)=>!value)}
-                className="group/project cursor-pointer w-full text-left flex items-center gap-0.5 h-5.5 bg-accent font-bold"
+                className="group/project cursor-pointer w-full text-left flex items-center gap-0.5 h-9 px-1.5 border-b"
                 >
                     <ChevronRightIcon
                         className={cn(
-                            "size-4 shrink-0 text-muted-foreground",
+                            "size-4 shrink-0 text-muted-foreground transition-transform",
                             isOpen && "rotate-90"
                         )}
                     />
-                    <p className="text-xs uppdercase line-clamp-1 ml-2">
+                    <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground line-clamp-1 ml-1">
                         {project?.name ?? "Loading..."}
                     </p>
                     <div className="opacity-0 group-hover/project:opacity-100 transition-none duration-0 flex items-center gap-0.5 ml-auto">
