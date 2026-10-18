@@ -8,6 +8,7 @@ import { Allotment } from "allotment";
 import { FileExplorer } from "./file-explorer";
 import { EditorView } from "@/features/editor/components/editor-view";
 import { ThemeSwitcher } from "./file-explorer/theme-switcher";
+import { PreviewView } from "./preview-view";
 
 const MIN_SIDEBAR_WIDTH = 200;
 const MAX_SIDEBAR_WIDTH = 800;
@@ -99,7 +100,7 @@ export const ProjectIdView = ({
             activeView === "preview" ? "visible" : "invisible"
           )}
         >
-          <div>Preview</div>
+          <PreviewView projectId={projectId}/>
         </div>
       </div>
     </div>
