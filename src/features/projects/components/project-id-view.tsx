@@ -3,12 +3,12 @@
 import { cn } from "@/lib/utils";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { useState } from "react";
-import { FaGithub } from "react-icons/fa";
 import { Allotment } from "allotment";
 import { FileExplorer } from "./file-explorer";
 import { EditorView } from "@/features/editor/components/editor-view";
 import { ThemeSwitcher } from "./file-explorer/theme-switcher";
 import { PreviewView } from "./preview-view";
+import { ExportPopover } from "./export-popover";
 
 const MIN_SIDEBAR_WIDTH = 200;
 const MAX_SIDEBAR_WIDTH = 800;
@@ -65,10 +65,7 @@ export const ProjectIdView = ({
           <ThemeSwitcher />
 
           {/* Export */}
-          <div className="flex items-center gap-1.5 h-full px-3 cursor-pointer text-muted-foreground border-l hover:bg-accent/30">
-            <FaGithub className="size-4" />
-            <span className="text-sm">Export</span>
-          </div>
+          <ExportPopover projectId={projectId} />
         </div>
       </nav>
 
