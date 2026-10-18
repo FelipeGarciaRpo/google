@@ -632,3 +632,90 @@ export const createProjectWithConversation = mutation({
     return { projectId, conversationId };
   },
 });
+
+// Used for Agent "runCommand" tool: queues a command for the user's browser
+export const createCommand = mutation({
+  args: {
+    internalKey: v.string(),
+    projectId: v.id("projects"),
+    command: v.string(),
+    timeoutSeconds: v.number(),
+  },
+  handler: async (ctx, args) => {
+    validateInternalKey(args.internalKey);
+
+    return await ctx.db.insert("commands", {
+      projectId: args.projectId,
+      command: args.command,
+      timeoutSeconds: args.timeoutSeconds,
+      status: "pending",
+    });
+  },
+});
+
+export const getCommand = query({
+  args: {
+    internalKey: v.string(),
+    commandId: v.id("commands"),
+  },
+  handler: async (ctx, args) => {
+    validateInternalKey(args.internalKey);
+
+    return await ctx.db.get(args.commandId);
+  },
+});
+
+// Called by /api/commands/complete with the result from the browser
+export const completeCommand = mutation({
+  args: {
+    internalKey: v.string(),
+    commandId: v.id("commands"),
+    // Clerk user that ran it; must own the project
+    ownerId: v.string(),
+    output: v.string(),
+    exitCode: v.optional(v.number()),
+    timedOut: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    validateInternalKey(args.internalKey);
+
+    const command = await ctx.db.get(args.commandId);
+    if (!command) {
+      throw new Error("Command not found");
+    }
+
+    const project = await ctx.db.get(command.projectId);
+    if (!project || project.ownerId !== args.ownerId) {
+      throw new Error("Unauthorized to complete this command");
+    }
+
+    // The agent may have given up already
+    if (command.status !== "running" && command.status !== "pending") {
+      return false;
+    }
+
+    await ctx.db.patch(args.commandId, {
+      status: args.timedOut ? "timeout" : "completed",
+      output: args.output,
+      exitCode: args.exitCode,
+    });
+
+    return true;
+  },
+});
+
+// The agent stopped waiting: make sure no browser runs it later
+export const expireCommand = mutation({
+  args: {
+    internalKey: v.string(),
+    commandId: v.id("commands"),
+  },
+  handler: async (ctx, args) => {
+    validateInternalKey(args.internalKey);
+
+    const command = await ctx.db.get(args.commandId);
+    if (command && (command.status === "pending" || command.status === "running")) {
+      await ctx.db.patch(args.commandId, { status: "expired" });
+    }
+  },
+});

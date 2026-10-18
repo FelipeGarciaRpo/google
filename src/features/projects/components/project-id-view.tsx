@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { Id } from "../../../../convex/_generated/dataModel";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Allotment } from "allotment";
 import { Code2Icon, EyeIcon, SquareTerminalIcon } from "lucide-react";
 import { FileExplorer } from "./file-explorer";
@@ -10,6 +10,7 @@ import { EditorView } from "@/features/editor/components/editor-view";
 import { PreviewView } from "./preview-view";
 import { useProject } from "../hooks/use-project";
 import { useWebContainer } from "@/features/preview/hooks/use-webcontainer";
+import { useAgentCommands } from "@/features/preview/hooks/use-agent-commands";
 import { BottomPanel, type BottomPanelTab } from "@/features/preview/components/bottom-panel";
 
 const MIN_SIDEBAR_WIDTH = 180;
@@ -69,6 +70,20 @@ export const ProjectIdView = ({
     projectId,
     enabled: true,
     settings: project?.settings,
+  });
+
+  // Show the Logs tab while the agent runs a command
+  const handleAgentCommandStart = useCallback(() => {
+    setPanelOpen(true);
+    setPanelTab("logs");
+  }, []);
+
+  useAgentCommands({
+    projectId,
+    container: webcontainer.container,
+    waitForSync: webcontainer.waitForSync,
+    appendOutput: webcontainer.appendOutput,
+    onCommandStart: handleAgentCommandStart,
   });
 
   // Ctrl+` toggles the bottom panel, like VS Code

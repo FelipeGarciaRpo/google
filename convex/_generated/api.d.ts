@@ -9,6 +9,7 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as commands from "../commands.js";
 import type * as constants from "../constants.js";
 import type * as conversations from "../conversations.js";
 import type * as files from "../files.js";
@@ -23,6 +24,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  commands: typeof commands;
   constants: typeof constants;
   conversations: typeof conversations;
   files: typeof files;
