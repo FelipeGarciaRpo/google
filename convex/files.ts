@@ -22,7 +22,40 @@ export const getFiles = query({
             .query("files")
             .withIndex("by_project", (q)=>q.eq("projectId", args.projectId))
             .collect();
-            
+
+    }
+})
+
+// Download URLs of the project's binary files (images, fonts…), used by the ZIP download
+export const getStorageUrls = query({
+    args: {projectId: v.id("projects")},
+    handler: async (ctx, args)=>{
+        const identity = await verifyAuth(ctx);
+
+        const project = await ctx.db.get("projects", args.projectId);
+
+        if(!project){
+            throw new Error("Project not found");
+        }
+
+        if(project.ownerId !== identity.subject){
+            throw new Error("Unauthorized to access this project");
+        }
+
+        const files = await ctx.db
+            .query("files")
+            .withIndex("by_project", (q)=>q.eq("projectId", args.projectId))
+            .collect();
+
+        const urls: {fileId: Id<"files">; url: string}[] = [];
+
+        for(const file of files){
+            if(!file.storageId) continue;
+            const url = await ctx.storage.getUrl(file.storageId);
+            if(url) urls.push({fileId: file._id, url});
+        }
+
+        return urls;
     }
 })
 

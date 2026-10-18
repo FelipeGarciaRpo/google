@@ -8,6 +8,7 @@ import { Id } from "../../../../convex/_generated/dataModel";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useProject, useRenameProject } from "../hooks/use-project";
 import { ExportPopover } from "./export-popover";
+import { DownloadButton } from "./download-button";
 
 // Page header, like the "Playground" title bar in AI Studio
 export const Navbar = ({
@@ -87,6 +88,7 @@ export const Navbar = ({
                 </TooltipProvider>
             </div>
             <div className="flex items-center gap-2">
+                <DownloadButton projectId={projectId}/>
                 <ExportPopover projectId={projectId}/>
             </div>
         </header>
