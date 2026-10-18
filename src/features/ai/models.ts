@@ -9,18 +9,14 @@ export interface AiModelInfo {
   description: string;
 }
 
+// Order matters: the selector lists them like this, and when the chosen
+// model is not configured the first available one is used
 export const AI_MODELS: AiModelInfo[] = [
   {
-    id: "gemini-2.5-flash",
-    label: "Gemini 2.5 Flash",
-    provider: "google",
-    description: "Fast and free. The default.",
-  },
-  {
-    id: "gemini-2.5-pro",
-    label: "Gemini 2.5 Pro",
-    provider: "google",
-    description: "Smarter but slower, with a smaller free quota.",
+    id: "openai/gpt-oss-120b",
+    label: "GPT-OSS 120B",
+    provider: "groq",
+    description: "Free on Groq, 1,000 requests a day. The default.",
   },
   {
     id: "llama-3.3-70b-versatile",
@@ -29,20 +25,26 @@ export const AI_MODELS: AiModelInfo[] = [
     description: "Free on Groq and very fast.",
   },
   {
-    id: "openai/gpt-oss-120b",
-    label: "GPT-OSS 120B",
-    provider: "groq",
-    description: "Free on Groq, stronger reasoning.",
+    id: "gemini-2.5-flash",
+    label: "Gemini 2.5 Flash",
+    provider: "google",
+    description: "Fast, with a smaller free quota.",
+  },
+  {
+    id: "gemini-2.5-pro",
+    label: "Gemini 2.5 Pro",
+    provider: "google",
+    description: "Smarter but slower, small free quota.",
   },
   {
     id: "custom",
     label: "My model",
     provider: "custom",
-    description: "Your own model behind an OpenAI-compatible API (Ollama, vLLM, LM Studio…).",
+    description: "Your own model behind an OpenAI-compatible API.",
   },
 ];
 
-export const DEFAULT_MODEL_ID = "gemini-2.5-flash";
+export const DEFAULT_MODEL_ID = "openai/gpt-oss-120b";
 
 export const PROVIDER_LABELS: Record<AiProvider, string> = {
   google: "Google",

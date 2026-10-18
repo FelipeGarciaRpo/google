@@ -206,19 +206,22 @@ export const AppSidebar = ({ activeProjectId }: AppSidebarProps) => {
                 {/* Footer */}
                 <div className={cn("shrink-0 flex flex-col gap-2 p-2", collapsed && "items-center")}>
                     {!isPro && !collapsed && (
+                        // Gradient border, like the AI Studio promo card: a 1px gradient frame
+                        // around a panel painted with the sidebar color
                         <button
                             type="button"
                             onClick={() => openUserProfile()}
-                            className="relative text-left rounded-xl p-3 bg-card overflow-hidden group"
+                            className="group rounded-xl p-px text-left"
+                            style={{ background: "linear-gradient(135deg, var(--brand-from), var(--brand-to))" }}
                         >
-                            {/* Gradient border, like the AI Studio promo card */}
-                            <span className="pointer-events-none absolute inset-0 rounded-xl p-px [background:linear-gradient(135deg,var(--brand-from),var(--brand-to))] [mask:linear-gradient(#000_0_0)_content-box,linear-gradient(#000_0_0)] [mask-composite:exclude]" />
-                            <span className="flex items-center gap-1.5 text-[13px] font-medium">
-                                <SparklesIcon className="size-3.5 text-primary" />
-                                Upgrade to Pro
-                            </span>
-                            <span className="block mt-1 text-xs text-muted-foreground leading-snug">
-                                Import and export your projects with GitHub.
+                            <span className="flex flex-col gap-0.5 rounded-[11px] bg-sidebar px-3 py-2 transition-colors group-hover:bg-card">
+                                <span className="flex items-center gap-1.5 text-[13px] font-medium">
+                                    <SparklesIcon className="size-3.5 text-primary" />
+                                    Upgrade to Pro
+                                </span>
+                                <span className="text-[11px] text-muted-foreground leading-snug">
+                                    GitHub import and export
+                                </span>
                             </span>
                         </button>
                     )}

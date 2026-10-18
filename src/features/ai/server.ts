@@ -11,11 +11,12 @@ import {
 
 const GROQ_BASE_URL = "https://api.groq.com/openai/v1/";
 
-// Free models tried, in this order, after the chosen one fails
+// Free models tried, in this order, after the chosen one fails.
+// Groq first: more free requests per day; Gemini catches Groq's per-minute token limit.
 const FALLBACK_ORDER = [
-  "gemini-2.5-flash",
-  "llama-3.3-70b-versatile",
   "openai/gpt-oss-120b",
+  "llama-3.3-70b-versatile",
+  "gemini-2.5-flash",
 ];
 
 export const isProviderConfigured = (provider: AiProvider) => {
