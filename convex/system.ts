@@ -74,8 +74,45 @@ export const updateMessageContent = mutation({
     await ctx.db.patch(args.messageId, {
       content: args.content,
       status: "completed" as const,
+      completedAt: Date.now(),
       ...(args.model !== undefined && { model: args.model }),
     });
+  },
+});
+
+const MAX_ACTIVITY_ENTRIES = 60;
+
+// Used by the agent to report each step it takes (shown as live progress)
+export const appendMessageActivity = mutation({
+  args: {
+    internalKey: v.string(),
+    messageId: v.id("messages"),
+    kind: v.union(
+      v.literal("start"),
+      v.literal("explore"),
+      v.literal("read"),
+      v.literal("write"),
+      v.literal("command"),
+      v.literal("info")
+    ),
+    label: v.string(),
+  },
+  handler: async (ctx, args) => {
+    validateInternalKey(args.internalKey);
+
+    const message = await ctx.db.get(args.messageId);
+
+    // A cancelled or finished message keeps its final state
+    if (!message || message.status !== "processing") {
+      return;
+    }
+
+    const activity = [
+      ...(message.activity ?? []),
+      { kind: args.kind, label: args.label, at: Date.now() },
+    ].slice(-MAX_ACTIVITY_ENTRIES);
+
+    await ctx.db.patch(args.messageId, { activity });
   },
 });
 

@@ -4,8 +4,9 @@ import { getFilePath } from "./file-tree";
 type FileDoc = Doc<"files">;
 
 export type ProjectRuntime =
-  // package.json projects and loose .js/.ts scripts, run in the WebContainer
-  | { kind: "node"; label: string; install: string | null; start: string; web: boolean }
+  // package.json projects and loose .js/.ts scripts, run in the WebContainer.
+  // dependencyKey changes when dependencies change, so the preview knows to reinstall.
+  | { kind: "node"; label: string; install: string | null; start: string; web: boolean; dependencyKey: string }
   // A plain index.html site, served with Vite
   | { kind: "static"; label: string; start: string }
   // Python runs in the browser with Pyodide (WebAssembly), console only
@@ -106,12 +107,17 @@ export const detectRuntime = (files: FileDoc[]): ProjectRuntime => {
           ? runScript(entry)
           : "npm start";
 
+    const dependencyKey = JSON.stringify(
+      Object.entries(deps).sort(([a], [b]) => a.localeCompare(b))
+    );
+
     return {
       kind: "node",
       label,
       install: "npm install",
       start,
       web: label !== "Node.js" && label !== "TypeScript",
+      dependencyKey,
     };
   }
 
@@ -150,6 +156,7 @@ export const detectRuntime = (files: FileDoc[]): ProjectRuntime => {
       install: null,
       start: runScript(scriptEntry),
       web: false,
+      dependencyKey: "",
     };
   }
 

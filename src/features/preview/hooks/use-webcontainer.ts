@@ -87,11 +87,16 @@ export const useWebContainer = ({
   // Only the program's own output, shown as the console preview
   const [programOutput, setProgramOutput] = useState("");
   const [exitCode, setExitCode] = useState<number | null>(null);
+  // Changing it remounts the preview iframe (a page reload)
+  const [previewKey, setPreviewKey] = useState(0);
   // Exposed so the interactive terminal and agent commands can use it
   const [container, setContainer] = useState<WebContainer | null>(null);
 
   const containerRef = useRef<WebContainer | null>(null);
   const programRef = useRef<WebContainerProcess | null>(null);
+  const statusRef = useRef(status);
+  // Dependencies at the time of the last successful install
+  const installedDepsRef = useRef<string | null>(null);
   const hasStartedRef = useRef(false);
   // path -> content already written to the container
   const syncedRef = useRef<Map<string, string>>(new Map());
@@ -108,6 +113,10 @@ export const useWebContainer = ({
   useEffect(() => {
     runtimeRef.current = runtime;
   }, [runtime]);
+
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
 
   const isRunnable = runsInContainer(runtime);
 
@@ -173,6 +182,7 @@ export const useWebContainer = ({
         }
       }
 
+      installedDepsRef.current = target.kind === "node" ? target.dependencyKey : null;
       await startProgram(instance, target);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Unknown error");
@@ -303,11 +313,47 @@ export const useWebContainer = ({
     syncPromiseRef.current.then(() => startProgram(instance, runtimeRef.current));
   }, [startProgram]);
 
+  // Reload the preview page, like a browser refresh
+  const reloadPreview = useCallback(() => {
+    setPreviewKey((key) => key + 1);
+  }, []);
+
+  // Called when the agent finishes, so the preview shows its final work
+  const refreshAfterAgent = useCallback(async () => {
+    const instance = containerRef.current;
+    if (!instance) return;
+
+    // Make sure the agent's last files are in the container first
+    await syncPromiseRef.current;
+
+    const target = runtimeRef.current;
+    if (!runsInContainer(target)) return;
+
+    const current = statusRef.current;
+    if (current === "booting" || current === "installing") return;
+
+    const dependenciesChanged =
+      target.kind === "node" &&
+      target.install !== null &&
+      target.dependencyKey !== installedDepsRef.current;
+
+    if (current === "waiting" || current === "error" || dependenciesChanged) {
+      setError(null);
+      await runProject(instance, target);
+    } else if (current === "exited" || current === "idle") {
+      await startProgram(instance, target);
+    } else {
+      // A dev server is running: reload the page so it picks up every new file
+      setPreviewKey((key) => key + 1);
+    }
+  }, [runProject, startProgram]);
+
   // Restart the entire WebContainer process
   const restart = useCallback(() => {
     teardownWebContainer();
     containerRef.current = null;
     programRef.current = null;
+    installedDepsRef.current = null;
     hasStartedRef.current = false;
     syncedRef.current = new Map();
     syncPromiseRef.current = Promise.resolve();
@@ -326,6 +372,9 @@ export const useWebContainer = ({
     error,
     restart,
     rerun,
+    reloadPreview,
+    refreshAfterAgent,
+    previewKey,
     runtime,
     terminalOutput,
     programOutput,

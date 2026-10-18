@@ -72,7 +72,7 @@ export const ProjectsView = () => {
     const promptRef = useRef<HTMLTextAreaElement>(null);
     const [modelId, setModelId] = useSelectedModel();
 
-    const { createProject, isSubmitting } = useCreateProjectWithPrompt();
+    const { createProject, isSubmitting, isOpening, warmUp } = useCreateProjectWithPrompt();
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -114,10 +114,13 @@ export const ProjectsView = () => {
                             textareaRef={promptRef}
                             size="lg"
                             value={prompt}
-                            onValueChange={setPrompt}
+                            onValueChange={(value) => {
+                                setPrompt(value);
+                                warmUp();
+                            }}
                             onSubmit={createProject}
-                            disabled={isSubmitting}
-                            submitLabel={isSubmitting ? "Creating…" : "Build"}
+                            disabled={isSubmitting || isOpening}
+                            submitLabel={isSubmitting ? "Creating project…" : isOpening ? "Opening project…" : "Build"}
                             placeholder="Describe the app you want to build…"
                             className="mt-10 max-w-2xl bg-card/80 backdrop-blur-xl animate-fade-in-up [animation-delay:80ms]"
                             toolbar={
@@ -142,6 +145,7 @@ export const ProjectsView = () => {
                                     type="button"
                                     onClick={() => {
                                         setPrompt(suggestion.prompt);
+                                        warmUp();
                                         promptRef.current?.focus();
                                     }}
                                     className="h-8 px-3.5 rounded-full border bg-background/60 backdrop-blur text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"

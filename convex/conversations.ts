@@ -117,3 +117,29 @@ export const getMessages = query({
       .collect();
   },
 });
+
+// True while the agent is working on any message of the project
+// (the preview refreshes itself when this turns false)
+export const isProjectBusy = query({
+  args: {
+    projectId: v.id("projects"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await verifyAuth(ctx);
+
+    const project = await ctx.db.get("projects", args.projectId);
+
+    if (!project || project.ownerId !== identity.subject) {
+      return false;
+    }
+
+    const processing = await ctx.db
+      .query("messages")
+      .withIndex("by_project_status", (q) =>
+        q.eq("projectId", args.projectId).eq("status", "processing")
+      )
+      .first();
+
+    return processing !== null;
+  },
+});
