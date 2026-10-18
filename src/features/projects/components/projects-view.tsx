@@ -11,6 +11,8 @@ import { Kbd } from "@/components/ui/kbd";
 import { StudioPromptBox } from "@/components/studio-prompt-box";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LandingHeadline, LandingShell, LANDING_SUGGESTIONS } from "@/features/landing/components/landing-shell";
+import { ModelSelector } from "@/features/ai/components/model-selector";
+import { useSelectedModel } from "@/features/ai/hooks/use-selected-model";
 
 import { useProjectsPartial } from "../hooks/use-project";
 import { useCreateProjectWithPrompt } from "../hooks/use-create-project-with-prompt";
@@ -68,6 +70,7 @@ export const ProjectsView = () => {
     const [commandDialogOpen, setCommandDialogOpen] = useState(false);
     const [importDialogOpen, setImportDialogOpen] = useState(false);
     const promptRef = useRef<HTMLTextAreaElement>(null);
+    const [modelId, setModelId] = useSelectedModel();
 
     const { createProject, isSubmitting } = useCreateProjectWithPrompt();
 
@@ -118,14 +121,17 @@ export const ProjectsView = () => {
                             placeholder="Describe the app you want to build…"
                             className="mt-10 max-w-2xl bg-card/80 backdrop-blur-xl animate-fade-in-up [animation-delay:80ms]"
                             toolbar={
-                                <button
-                                    type="button"
-                                    onClick={() => setImportDialogOpen(true)}
-                                    className="flex items-center gap-1.5 h-8 px-3 rounded-full border text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-                                >
-                                    <FaGithub className="size-3.5" />
-                                    Import repo
-                                </button>
+                                <>
+                                    <ModelSelector value={modelId} onChange={setModelId} />
+                                    <button
+                                        type="button"
+                                        onClick={() => setImportDialogOpen(true)}
+                                        className="flex items-center gap-1.5 h-8 px-3 rounded-full border text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+                                    >
+                                        <FaGithub className="size-3.5" />
+                                        Import repo
+                                    </button>
+                                </>
                             }
                         />
 

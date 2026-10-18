@@ -3,12 +3,15 @@ import ky from "ky";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
+import { useSelectedModel } from "@/features/ai/hooks/use-selected-model";
+
 import { Id } from "../../../../convex/_generated/dataModel";
 
 // Creates a project + conversation from a prompt and opens it
 export const useCreateProjectWithPrompt = () => {
     const router = useRouter();
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [modelId] = useSelectedModel();
 
     const createProject = async (prompt: string) => {
         if (!prompt.trim() || isSubmitting) return false;
@@ -18,7 +21,7 @@ export const useCreateProjectWithPrompt = () => {
         try {
             const { projectId } = await ky
                 .post("/api/projects/create-with-prompt", {
-                    json: { prompt: prompt.trim() },
+                    json: { prompt: prompt.trim(), model: modelId },
                 })
                 .json<{ projectId: Id<"projects"> }>();
 

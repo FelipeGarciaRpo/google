@@ -1,15 +1,22 @@
-import { createAgent, gemini, createNetwork } from '@inngest/agent-kit';
+import { createAgent, gemini, createNetwork, type AgentResult } from '@inngest/agent-kit';
 
 import { inngest } from "@/inngest/client";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { NonRetriableError } from "inngest";
 import { convex } from "@/lib/convex-client";
 import { api } from "../../../../convex/_generated/api";
-import { 
-  CODING_AGENT_SYSTEM_PROMPT, 
+import {
+  CODING_AGENT_SYSTEM_PROMPT,
   TITLE_GENERATOR_SYSTEM_PROMPT
 } from "./constants";
 import { DEFAULT_CONVERSATION_TITLE } from "../constants";
+import {
+  createAgentModel,
+  getModelChain,
+  getModelLabel,
+  isProviderConfigured,
+  usesStrictTools,
+} from "@/features/ai/server";
 import { createReadFilesTool } from './tools/read-files';
 import { createListFilesTool } from './tools/list-files';
 import { createUpdateFileTool } from './tools/update-file';
@@ -27,11 +34,28 @@ interface MessageEvent {
   conversationId: Id<"conversations">;
   projectId: Id<"projects">;
   message: string;
+  // Model picked in the selector; missing for older events
+  model?: string;
+};
+
+const getAssistantText = (result: Pick<AgentResult, "output"> | undefined) => {
+  const textMessage = result?.output.find(
+    (m) => m.type === "text" && m.role === "assistant"
+  );
+
+  if (textMessage?.type !== "text") return null;
+
+  return typeof textMessage.content === "string"
+    ? textMessage.content
+    : textMessage.content.map((c) => c.text).join("");
 };
 
 export const processMessage = inngest.createFunction(
   {
     id: "process-message",
+    // A failed model call should fall back to the next model right away
+    // instead of waiting for Inngest's retry backoff
+    retries: 0,
     cancelOn: [
       {
         event: "message/cancel",
@@ -59,17 +83,25 @@ export const processMessage = inngest.createFunction(
     event: "message/sent",
   },
   async ({ event, step }) => {
-    const { 
-      messageId, 
+    const {
+      messageId,
       conversationId,
       projectId,
-      message
+      message,
+      model,
     } = event.data as MessageEvent;
 
-    const internalKey = process.env.CONVEX_INTERNAL_KEY; 
+    const internalKey = process.env.CONVEX_INTERNAL_KEY;
 
     if (!internalKey) {
       throw new NonRetriableError("CONVEX_INTERNAL_KEY is not configured");
+    }
+
+    // The chosen model first, then configured free fallbacks
+    const modelChain = getModelChain(model);
+
+    if (modelChain.length === 0) {
+      throw new NonRetriableError("No AI provider is configured. Add GOOGLE_GENERATIVE_AI_API_KEY or GROQ_API_KEY.");
     }
 
     // TODO: Check if this is needed
@@ -112,37 +144,27 @@ export const processMessage = inngest.createFunction(
       systemPrompt += `\n\n## Previous Conversation (for context only - do NOT repeat these responses):\n${historyText}\n\n## Current Request:\nRespond ONLY to the user's new message below. Do not repeat or reference your previous responses.`;
     }
 
-    // Generate conversation title if it's still the default
+    // Generate conversation title if it's still the default.
+    // It's a nice-to-have, so a failure here never blocks the actual answer.
     const shouldGenerateTitle =
       conversation.title === DEFAULT_CONVERSATION_TITLE;
 
     if (shouldGenerateTitle) {
-       const titleAgent = createAgent({
-        name: "title-generator",
-        system: TITLE_GENERATOR_SYSTEM_PROMPT,
-        model: gemini({
-          //model: "claude-3-5-haiku-20241022",
-          model: "gemini-flash-latest",
-          // AgentKit looks for GEMINI_API_KEY by default; reuse the AI SDK key instead
-          apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-          //defaultParameters: { temperature: 0, max_tokens: 50 },
-        }),
-       });
+      try {
+        const titleAgent = createAgent({
+          name: "title-generator",
+          system: TITLE_GENERATOR_SYSTEM_PROMPT,
+          // No tools here, so the latest Gemini works; otherwise reuse the agent's model
+          model: isProviderConfigured("google")
+            ? gemini({
+              model: "gemini-flash-latest",
+              apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+            })
+            : createAgentModel(modelChain[0]),
+        });
 
-       const { output } = await titleAgent.run(message, { step });
-
-       const textMessage = output.find(
-        (m) => m.type === "text" && m.role === "assistant"
-      );
-
-      if (textMessage?.type === "text") {
-         const title = 
-          typeof textMessage.content === "string"
-            ? textMessage.content.trim()
-            : textMessage.content
-              .map((c) => c.text)
-              .join("")
-              .trim();
+        const { output } = await titleAgent.run(message, { step });
+        const title = getAssistantText({ output })?.trim();
 
         if (title) {
           await step.run("update-conversation-title", async () => {
@@ -153,76 +175,88 @@ export const processMessage = inngest.createFunction(
             });
           });
         }
+      } catch (error) {
+        console.warn("Title generation failed", error);
       }
     }
 
-    // Create the coding agent with file tools
-    const codingAgent = createAgent({
-      name: "polaris",
-      description: "An expert AI coding assistant",
-      system: systemPrompt,
-       model: gemini({
-        // Gemini 3 models require thought signatures on tool calls, which
-        // AgentKit 0.13 does not send back yet; 2.5 does not enforce them
-        model: "gemini-2.5-flash",
-        apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-        //defaultParameters: { temperature: 0.3, max_tokens: 16000 }
-       }),
-       tools: [
-        createListFilesTool({ internalKey, projectId }),
-        createGlobFilesTool({ internalKey, projectId }),
-        createGrepFilesTool({ internalKey, projectId }),
-        createReadFilesTool({ internalKey }),
-        createEditFileTool({ internalKey }),
-        createUpdateFileTool({ internalKey }),
-        createCreateFilesTool({ projectId, internalKey }),
-        createCreateFolderTool({ projectId, internalKey }),
-        createRenameFileTool({ internalKey }),
-        createDeleteFilesTool({ internalKey }),
-        createScrapeUrlsTool(),
-       ],
-    });
+    const tools = [
+      createListFilesTool({ internalKey, projectId }),
+      createGlobFilesTool({ internalKey, projectId }),
+      createGrepFilesTool({ internalKey, projectId }),
+      createReadFilesTool({ internalKey }),
+      createEditFileTool({ internalKey }),
+      createUpdateFileTool({ internalKey }),
+      createCreateFilesTool({ projectId, internalKey }),
+      createCreateFolderTool({ projectId, internalKey }),
+      createRenameFileTool({ internalKey }),
+      createDeleteFilesTool({ internalKey }),
+      createScrapeUrlsTool(),
+    ];
 
-    // Create network with single agent
-    const network = createNetwork({
-      name: "polaris-network",
-      agents: [codingAgent],
-      maxIter: 20,
-      router: ({ network }) => {
-        const lastResult = network.state.results.at(-1);
-        const hasTextResponse = lastResult?.output.some(
-          (m) => m.type === "text" && m.role === "assistant"
-        );
-        const hasToolCalls = lastResult?.output.some(
-          (m) => m.type === "tool_call"
-        );
+    let assistantResponse: string | null = null;
+    let answeredBy: string | null = null;
+    let lastError: unknown = null;
 
-        // Anthropic outputs text AND tool calls together
-        // Only stop if there's text WITHOUT tool calls (final response)
-        if (hasTextResponse && !hasToolCalls) {
-          return undefined;
+    for (const [attempt, modelId] of modelChain.entries()) {
+      // Unique names keep each attempt's Inngest step IDs separate
+      const suffix = attempt === 0 ? "" : `-fallback-${attempt}`;
+
+      // Create the coding agent with file tools
+      const codingAgent = createAgent({
+        name: `polaris${suffix}`,
+        description: "An expert AI coding assistant",
+        system: systemPrompt,
+        model: createAgentModel(modelId),
+        tools: usesStrictTools(modelId)
+          ? tools
+          : tools.map((tool) => ({ ...tool, strict: false })),
+      });
+
+      // Create network with single agent
+      const network = createNetwork({
+        name: `polaris-network${suffix}`,
+        agents: [codingAgent],
+        maxIter: 20,
+        router: ({ network }) => {
+          const lastResult = network.state.results.at(-1);
+          const hasTextResponse = lastResult?.output.some(
+            (m) => m.type === "text" && m.role === "assistant"
+          );
+          const hasToolCalls = lastResult?.output.some(
+            (m) => m.type === "tool_call"
+          );
+
+          // Anthropic outputs text AND tool calls together
+          // Only stop if there's text WITHOUT tool calls (final response)
+          if (hasTextResponse && !hasToolCalls) {
+            return undefined;
+          }
+          return codingAgent;
         }
-        return codingAgent;
+      });
+
+      try {
+        // Run the agent
+        const result = await network.run(message);
+
+        // Extract the assistant's text response from the last agent result
+        assistantResponse =
+          getAssistantText(result.state.results.at(-1)) ??
+          "I processed your request. Let me know if you need anything else!";
+        answeredBy = attempt === 0
+          ? getModelLabel(modelId)
+          : `${getModelLabel(modelId)} · fallback`;
+        break;
+      } catch (error) {
+        lastError = error;
+        console.warn(`Model ${modelId} failed, trying the next one`, error);
       }
-    });
+    }
 
-    // Run the agent
-    const result = await network.run(message);
-
-    // Extract the assistant's text response from the last agent result
-    const lastResult = result.state.results.at(-1);
-    const textMessage = lastResult?.output.find(
-      (m) => m.type === "text" && m.role === "assistant"
-    );
-
-    let assistantResponse =
-      "I processed your request. Let me know if you need anything else!";
-
-    if (textMessage?.type === "text") {
-      assistantResponse =
-        typeof textMessage.content === "string"
-          ? textMessage.content
-          : textMessage.content.map((c) => c.text).join("");
+    if (assistantResponse === null) {
+      // Every model failed: onFailure shows the apology message
+      throw lastError ?? new Error("All models failed");
     }
 
     // Update the assistant message with the response (this also sets status to completed)
@@ -231,9 +265,10 @@ export const processMessage = inngest.createFunction(
         internalKey,
         messageId,
         content: assistantResponse,
+        model: answeredBy ?? undefined,
       })
     });
 
-    return { success: true, messageId, conversationId };
+    return { success: true, messageId, conversationId, model: answeredBy };
   }
 );

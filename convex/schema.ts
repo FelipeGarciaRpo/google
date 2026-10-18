@@ -54,6 +54,8 @@ export default defineSchema({
         projectId: v.id("projects"),
         role: v.union(v.literal("user"), v.literal("assistant")),
         content: v.string(),
+        // Label of the model that wrote an assistant message (e.g. "Gemini 2.5 Flash")
+        model: v.optional(v.string()),
         status: v.optional(
             v.union(
                 v.literal("processing"),

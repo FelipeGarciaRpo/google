@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 
 import { inngest } from "@/inngest/client";
 import { convex } from "@/lib/convex-client";
+import { isModelId } from "@/features/ai/models";
 
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
@@ -11,6 +12,7 @@ import { Id } from "../../../../convex/_generated/dataModel";
 const requestSchema = z.object({
   conversationId: z.string(),
   message: z.string(),
+  model: z.string().optional(),
 });
 
 export async function POST(request: Request) {
@@ -30,7 +32,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { conversationId, message } = requestSchema.parse(body);
+  const { conversationId, message, model } = requestSchema.parse(body);
 
   // Call convex mutation, query
   const conversation = await convex.query(api.system.getConversationById, {
@@ -106,6 +108,8 @@ export async function POST(request: Request) {
       conversationId,
       projectId,
       message,
+      // Unknown ids are dropped and the agent uses the default model
+      model: isModelId(model) ? model : undefined,
     },
   });
 

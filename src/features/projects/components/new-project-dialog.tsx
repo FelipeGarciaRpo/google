@@ -10,6 +10,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { StudioPromptBox } from "@/components/studio-prompt-box";
+import { ModelSelector } from "@/features/ai/components/model-selector";
+import { useSelectedModel } from "@/features/ai/hooks/use-selected-model";
 
 import { useCreateProjectWithPrompt } from "../hooks/use-create-project-with-prompt";
 
@@ -24,6 +26,7 @@ export const NewProjectDialog = ({
 }: NewProjectDialogProps) => {
   const [input, setInput] = useState("");
   const { createProject, isSubmitting } = useCreateProjectWithPrompt();
+  const [modelId, setModelId] = useSelectedModel();
 
   const handleSubmit = async (text: string) => {
     const created = await createProject(text);
@@ -55,6 +58,7 @@ export const NewProjectDialog = ({
           submitLabel={isSubmitting ? "Creating…" : "Build"}
           placeholder="Describe the app you want to build…"
           className="bg-popover"
+          toolbar={<ModelSelector value={modelId} onChange={setModelId} />}
         />
       </DialogContent>
     </Dialog>
