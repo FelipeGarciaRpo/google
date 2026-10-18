@@ -1,4 +1,4 @@
-import ky from "ky";
+import ky, { HTTPError } from "ky";
 import { toast } from "sonner";
 import { useRef, useState } from "react";
 import {
@@ -197,8 +197,12 @@ export const ConversationSidebar = ({
           model: modelId,
         },
       });
-    } catch {
-      toast.error("Message failed to send");
+    } catch (error) {
+      // Show the server's reason (e.g. Inngest not running) when there is one
+      const body = error instanceof HTTPError
+        ? await error.response.json<{ error?: string }>().catch(() => null)
+        : null;
+      toast.error(body?.error ?? "Message failed to send");
     }
 
     setInput("");

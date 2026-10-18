@@ -5,6 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 import { inngest } from "@/inngest/client";
 import { convex } from "@/lib/convex-client";
 import { isModelId } from "@/features/ai/models";
+import { INNGEST_UNAVAILABLE_ERROR, startAgent } from "@/features/conversations/server/start-agent";
 
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
@@ -101,21 +102,23 @@ export async function POST(request: Request) {
   );
 
   // Trigger Inngest to process the message
-  const event = await inngest.send({
-    name: "message/sent",
-    data: {
-      messageId: assistantMessageId,
-      conversationId,
-      projectId,
-      message,
-      // Unknown ids are dropped and the agent uses the default model
-      model: isModelId(model) ? model : undefined,
-    },
+  const started = await startAgent({
+    internalKey,
+    messageId: assistantMessageId,
+    conversationId: conversationId as Id<"conversations">,
+    projectId,
+    message,
+    // Unknown ids are dropped and the agent uses the default model
+    model: isModelId(model) ? model : undefined,
   });
+
+  if (!started.ok) {
+    return NextResponse.json({ error: INNGEST_UNAVAILABLE_ERROR }, { status: 503 });
+  }
 
   return NextResponse.json({
     success: true,
-    eventId: event.ids[0],
+    eventId: started.eventId,
     messageId: assistantMessageId,
   });
 };

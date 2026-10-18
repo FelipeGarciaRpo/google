@@ -1,5 +1,5 @@
 import { useState } from "react";
-import ky from "ky";
+import ky, { HTTPError } from "ky";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -28,8 +28,12 @@ export const useCreateProjectWithPrompt = () => {
             toast.success("Project created");
             router.push(`/projects/${projectId}`);
             return true;
-        } catch {
-            toast.error("Unable to create project");
+        } catch (error) {
+            // Show the server's reason (e.g. Inngest not running) when there is one
+            const body = error instanceof HTTPError
+                ? await error.response.json<{ error?: string }>().catch(() => null)
+                : null;
+            toast.error(body?.error ?? "Unable to create project");
             return false;
         } finally {
             setIsSubmitting(false);

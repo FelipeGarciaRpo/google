@@ -10,9 +10,9 @@ import {
 
 import { DEFAULT_CONVERSATION_TITLE } from "@/features/conversations/constants";
 
-import { inngest } from "@/inngest/client";
 import { convex } from "@/lib/convex-client";
 import { isModelId } from "@/features/ai/models";
+import { INNGEST_UNAVAILABLE_ERROR, startAgent } from "@/features/conversations/server/start-agent";
 
 import { api } from "../../../../../convex/_generated/api";
 
@@ -81,16 +81,21 @@ export async function POST(request: Request) {
   );
 
   // Trigger Inngest to process the message
-  await inngest.send({
-    name: "message/sent",
-    data: {
-      messageId: assistantMessageId,
-      conversationId,
-      projectId,
-      message: prompt,
-      model: isModelId(model) ? model : undefined,
-    },
+  const started = await startAgent({
+    internalKey,
+    messageId: assistantMessageId,
+    conversationId,
+    projectId,
+    message: prompt,
+    model: isModelId(model) ? model : undefined,
   });
+
+  if (!started.ok) {
+    return NextResponse.json(
+      { error: INNGEST_UNAVAILABLE_ERROR, projectId },
+      { status: 503 }
+    );
+  }
 
   return NextResponse.json({ projectId });
 };

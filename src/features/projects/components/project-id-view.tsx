@@ -149,7 +149,11 @@ export const ProjectIdView = ({
                   activeView === "preview" ? "visible" : "invisible"
                 )}
               >
-                <PreviewView projectId={projectId} webcontainer={webcontainer} />
+                <PreviewView
+                  projectId={projectId}
+                  webcontainer={webcontainer}
+                  active={activeView === "preview"}
+                />
               </div>
             </div>
           </Allotment.Pane>
