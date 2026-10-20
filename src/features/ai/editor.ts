@@ -50,7 +50,9 @@ export const withEditorModel = async <T>(
       });
     } catch (error) {
       lastError = error;
-      console.warn(`Model ${id} failed, trying the next one`, error);
+      // Only the reason: the full error carries the request body, i.e. the user's code
+      const reason = error instanceof Error ? error.message : String(error);
+      console.warn(`Model ${id} failed, trying the next one: ${reason}`);
     }
   }
 
