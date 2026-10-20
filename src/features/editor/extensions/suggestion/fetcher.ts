@@ -1,6 +1,5 @@
-import ky, { HTTPError } from "ky";
+import ky from "ky";
 import { z } from "zod";
-import { toast } from "sonner";
 
 const suggestionRequestSchema = z.object({
   fileName: z.string(),
@@ -39,12 +38,9 @@ export const fetcher = async (
     const validatedResponse = suggestionResponseSchema.parse(response);
 
     return validatedResponse.suggestion || null;
-  } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") {
-      return null;
-    }
-    if (error instanceof HTTPError && error.response.status === 429) return null;
-    toast.error("Failed to fetch AI completion");
+  } catch {
+    // Suggestions are best-effort: when one fails (rate limit, timeout, the user
+    // kept typing) the editor just shows no ghost text instead of a toast
     return null;
   }
 };

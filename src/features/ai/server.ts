@@ -15,7 +15,7 @@ const GROQ_BASE_URL = "https://api.groq.com/openai/v1/";
 // Groq first: more free requests per day; Gemini catches Groq's per-minute token limit.
 const FALLBACK_ORDER = [
   "openai/gpt-oss-120b",
-  "llama-3.3-70b-versatile",
+  "openai/gpt-oss-20b",
   "gemini-2.5-flash",
 ];
 
