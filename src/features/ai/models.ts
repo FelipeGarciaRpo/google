@@ -19,8 +19,8 @@ export const AI_MODELS: AiModelInfo[] = [
     description: "Free on Groq, 1,000 requests a day. The default.",
   },
   {
-    id: "llama-3.3-70b-versatile",
-    label: "Llama 3.3 70B",
+    id: "openai/gpt-oss-20b",
+    label: "GPT-OSS 20B",
     provider: "groq",
     description: "Free on Groq and very fast.",
   },
@@ -29,12 +29,6 @@ export const AI_MODELS: AiModelInfo[] = [
     label: "Gemini 2.5 Flash",
     provider: "google",
     description: "Fast, with a smaller free quota.",
-  },
-  {
-    id: "gemini-2.5-pro",
-    label: "Gemini 2.5 Pro",
-    provider: "google",
-    description: "Smarter but slower, small free quota.",
   },
   {
     id: "custom",

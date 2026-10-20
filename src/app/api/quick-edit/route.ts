@@ -2,9 +2,8 @@ import { z } from "zod";
 import { generateText, Output } from "ai";
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-// import { anthropic } from "@ai-sdk/anthropic";
-import { google } from "@ai-sdk/google";
 
+import { withEditorModel } from "@/features/ai/editor";
 import { firecrawl } from "@/lib/firecrawl";
 
 const quickEditSchema = z.object({
@@ -102,11 +101,15 @@ export async function POST(request: Request) {
       .replace("{instruction}", instruction)
       .replace("{documentation}", documentationContext);
 
-    const { output } = await generateText({
-      model: google("gemini-flash-latest"),
-      output: Output.object({ schema: quickEditSchema }),
-      prompt,
-    });
+    const { output } = await withEditorModel("quickEdit", (settings) =>
+      generateText({
+        ...settings,
+        output: Output.object({ schema: quickEditSchema }),
+        prompt,
+        // A failing model hands over to the next one right away instead of retrying
+        maxRetries: 0,
+      }),
+    );
 
     return NextResponse.json({ editedCode: output.editedCode });
   } catch (error) {

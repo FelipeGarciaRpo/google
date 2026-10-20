@@ -1,4 +1,4 @@
-import { createAgent, gemini, createNetwork, type AgentResult } from '@inngest/agent-kit';
+import { createAgent, createNetwork, type AgentResult } from '@inngest/agent-kit';
 
 import { inngest } from "@/inngest/client";
 import { Id } from "../../../../convex/_generated/dataModel";
@@ -14,7 +14,6 @@ import {
   createAgentModel,
   getModelChain,
   getModelLabel,
-  isProviderConfigured,
   usesStrictTools,
 } from "@/features/ai/server";
 import { createReadFilesTool } from './tools/read-files';
@@ -161,13 +160,9 @@ export const processMessage = inngest.createFunction(
         const titleAgent = createAgent({
           name: "title-generator",
           system: TITLE_GENERATOR_SYSTEM_PROMPT,
-          // No tools here, so the latest Gemini works; otherwise reuse the agent's model
-          model: isProviderConfigured("google")
-            ? gemini({
-              model: "gemini-flash-latest",
-              apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-            })
-            : createAgentModel(modelChain[0]),
+          // Same model as the agent: Gemini's "latest" alias can take minutes when
+          // it's busy, and the agent only starts once the title is done
+          model: createAgentModel(modelChain[0]),
         });
 
         const { output } = await titleAgent.run(message, { step });

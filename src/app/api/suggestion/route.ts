@@ -2,8 +2,8 @@ import { generateText, Output } from "ai";
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-//import { anthropic } from "@ai-sdk/anthropic";
-import { google } from "@ai-sdk/google";
+
+import { withEditorModel } from "@/features/ai/editor";
 
 const suggestionSchema = z.object({
   suggestion: z
@@ -82,12 +82,15 @@ export async function POST(request: Request) {
       .replace("{nextLines}", nextLines || "")
       .replace("{lineNumber}", lineNumber.toString());
 
-    const { output } = await generateText({
-      //model: anthropic("claude-3-7-sonnet-20250219"),
-      model: google("gemini-flash-latest"),
-      output: Output.object({ schema: suggestionSchema }),
-      prompt,
-    });
+    const { output } = await withEditorModel("suggestion", (settings) =>
+      generateText({
+        ...settings,
+        output: Output.object({ schema: suggestionSchema }),
+        prompt,
+        // A failing model hands over to the next one right away instead of retrying
+        maxRetries: 0,
+      }),
+    );
 
     return NextResponse.json({ suggestion: output.suggestion })
   } catch (error) {
