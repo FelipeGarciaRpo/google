@@ -178,16 +178,6 @@
 }
 
 /* =====================================================================
-   UTILITIES
-   ===================================================================== */
-.text-brand-gradient {
-  background: linear-gradient(90deg, var(--brand-from), var(--brand-to));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-/* =====================================================================
    ANIMATIONS
    ===================================================================== */
 @theme inline {

@@ -5,9 +5,16 @@ import { SignInButton, SignUpButton, useClerk } from "@clerk/nextjs";
 
 import { StudioPromptBox } from "@/components/studio-prompt-box";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { LandingHeadline, LandingShell, LANDING_SUGGESTIONS } from "@/features/landing/components/landing-shell";
+import { LandingHeadline, LandingShell, LandingSuggestions } from "@/features/landing/components/landing-shell";
+import {
+    LandingClosing,
+    LandingFooter,
+    LandingInside,
+    LandingMoments,
+    StudioShot,
+} from "@/features/landing/components/landing-sections";
 
-// Public landing: same hero as the signed-in home, but building asks to sign in first
+// Public landing: the prompt box beside the product, then what it does. Building asks to sign in first
 export const UnauthenticatedView = ()=>{
     const [prompt, setPrompt] = useState("");
     const { openSignIn } = useClerk();
@@ -17,10 +24,11 @@ export const UnauthenticatedView = ()=>{
             headerActions={
                 <>
                     <ThemeToggle />
+                    {/* Hidden on a phone, where the bar has no room: "Get started" and "Build" both lead to sign in */}
                     <SignInButton mode="modal">
                         <button
                             type="button"
-                            className="h-9 px-4 rounded-full text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+                            className="hidden sm:block h-9 px-4 rounded-full text-sm whitespace-nowrap text-muted-foreground hover:bg-accent hover:text-foreground"
                         >
                             Sign in
                         </button>
@@ -28,7 +36,7 @@ export const UnauthenticatedView = ()=>{
                     <SignUpButton mode="modal">
                         <button
                             type="button"
-                            className="h-9 px-4 rounded-full text-sm font-medium bg-primary text-primary-foreground hover:opacity-90"
+                            className="shrink-0 h-9 px-4 rounded-full text-sm font-medium whitespace-nowrap bg-primary text-primary-foreground hover:opacity-90"
                         >
                             Get started
                         </button>
@@ -36,32 +44,30 @@ export const UnauthenticatedView = ()=>{
                 </>
             }
         >
-            <div className="flex flex-col items-center px-5 sm:px-8 pt-[14vh] pb-20">
-                <LandingHeadline />
+            <section className="mx-auto flex w-full max-w-336 flex-col gap-12 px-5 pt-10 pb-20 sm:px-8 xl:flex-row xl:items-center xl:gap-16 xl:pt-14 xl:pb-24">
+                <div className="flex w-full max-w-150 shrink-0 flex-col xl:w-150">
+                    <LandingHeadline />
 
-                <StudioPromptBox
-                    size="lg"
-                    value={prompt}
-                    onValueChange={setPrompt}
-                    onSubmit={() => openSignIn()}
-                    submitLabel="Build"
-                    placeholder="Describe the app you want to build…"
-                    className="mt-10 max-w-2xl bg-card/80 backdrop-blur-xl animate-fade-in-up [animation-delay:80ms]"
-                />
+                    <StudioPromptBox
+                        size="lg"
+                        value={prompt}
+                        onValueChange={setPrompt}
+                        onSubmit={() => openSignIn()}
+                        submitLabel="Build"
+                        placeholder="Describe the app you want to build…"
+                        className="mt-7 max-w-140 shadow-none animate-fade-in-up [animation-delay:80ms]"
+                    />
 
-                <div className="mt-4 flex flex-wrap justify-center gap-2 animate-fade-in-up [animation-delay:120ms]">
-                    {LANDING_SUGGESTIONS.map((suggestion) => (
-                        <button
-                            key={suggestion.label}
-                            type="button"
-                            onClick={() => setPrompt(suggestion.prompt)}
-                            className="h-8 px-3.5 rounded-full border bg-background/60 backdrop-blur text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                        >
-                            {suggestion.label}
-                        </button>
-                    ))}
+                    <LandingSuggestions onPick={setPrompt} className="mt-3.5" />
                 </div>
-            </div>
+
+                <StudioShot />
+            </section>
+
+            <LandingMoments />
+            <LandingInside />
+            <LandingClosing />
+            <LandingFooter />
         </LandingShell>
     )
 }
