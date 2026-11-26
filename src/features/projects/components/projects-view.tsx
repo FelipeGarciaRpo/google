@@ -10,7 +10,7 @@ import { AlertCircleIcon, ArrowUpRightIcon, LayoutGridIcon, Loader2Icon } from "
 import { Kbd } from "@/components/ui/kbd";
 import { StudioPromptBox } from "@/components/studio-prompt-box";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { LandingHeadline, LandingShell, LANDING_SUGGESTIONS } from "@/features/landing/components/landing-shell";
+import { LandingHeadline, LandingShell, LandingSuggestions } from "@/features/landing/components/landing-shell";
 import { ModelSelector } from "@/features/ai/components/model-selector";
 import { useSelectedModel } from "@/features/ai/hooks/use-selected-model";
 
@@ -49,7 +49,7 @@ const RecentProjects = ({ onViewAll }: { onViewAll: () => void }) => {
                     <Link
                         key={project._id}
                         href={`/projects/${project._id}`}
-                        className="group flex flex-col justify-between gap-6 rounded-xl border bg-card/70 backdrop-blur p-4 transition-colors hover:bg-surface-hover"
+                        className="group flex flex-col justify-between gap-6 rounded-xl border bg-card p-4 transition-colors hover:bg-surface-hover"
                     >
                         <div className="flex items-start justify-between gap-2">
                             <span className="text-sm font-medium truncate">{project.name}</span>
@@ -108,7 +108,7 @@ export const ProjectsView = () => {
             >
                 <div className="flex flex-col items-center px-5 sm:px-8 pt-[12vh] pb-20 gap-16">
                     <div className="w-full flex flex-col items-center">
-                        <LandingHeadline />
+                        <LandingHeadline align="center" />
 
                         <StudioPromptBox
                             textareaRef={promptRef}
@@ -122,7 +122,7 @@ export const ProjectsView = () => {
                             disabled={isSubmitting || isOpening}
                             submitLabel={isSubmitting ? "Creating project…" : isOpening ? "Opening project…" : "Build"}
                             placeholder="Describe the app you want to build…"
-                            className="mt-10 max-w-2xl bg-card/80 backdrop-blur-xl animate-fade-in-up [animation-delay:80ms]"
+                            className="mt-10 max-w-2xl shadow-none animate-fade-in-up [animation-delay:80ms]"
                             toolbar={
                                 <>
                                     <ModelSelector value={modelId} onChange={setModelId} />
@@ -138,22 +138,14 @@ export const ProjectsView = () => {
                             }
                         />
 
-                        <div className="mt-4 flex flex-wrap justify-center gap-2 animate-fade-in-up [animation-delay:120ms]">
-                            {LANDING_SUGGESTIONS.map((suggestion) => (
-                                <button
-                                    key={suggestion.label}
-                                    type="button"
-                                    onClick={() => {
-                                        setPrompt(suggestion.prompt);
-                                        warmUp();
-                                        promptRef.current?.focus();
-                                    }}
-                                    className="h-8 px-3.5 rounded-full border bg-background/60 backdrop-blur text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                                >
-                                    {suggestion.label}
-                                </button>
-                            ))}
-                        </div>
+                        <LandingSuggestions
+                            className="mt-4 justify-center"
+                            onPick={(suggestion) => {
+                                setPrompt(suggestion);
+                                warmUp();
+                                promptRef.current?.focus();
+                            }}
+                        />
                     </div>
 
                     <RecentProjects onViewAll={() => setCommandDialogOpen(true)} />
